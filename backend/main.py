@@ -89,24 +89,34 @@ async def get_shipments():
     # Placeholder for database/simulation integration
     return [
         Shipment(
-            id="SHP-001",
-            origin=Location(lat=40.7128, lng=-74.0060, name="New York"),
-            destination=Location(lat=34.0522, lng=-118.2437, name="Los Angeles"),
-            current_location=Location(lat=39.0997, lng=-94.5786, name="Kansas City"),
+            id="TRK-DL-MH-01",
+            origin=Location(lat=28.7041, lng=77.1025, name="New Delhi Hub"),
+            destination=Location(lat=19.0760, lng=72.8777, name="Mumbai Port"),
+            current_location=Location(lat=26.9124, lng=75.7873, name="NH48 near Jaipur"),
+            mode=TransportMode.TRUCKING,
+            status=Status.DELAYED,
+            eta="2026-04-19T10:00:00Z",
+            risk_score=0.85
+        ),
+        Shipment(
+            id="TRK-TN-KA-02",
+            origin=Location(lat=13.0827, lng=80.2707, name="Chennai Base"),
+            destination=Location(lat=12.9716, lng=77.5946, name="Bangalore Depot"),
+            current_location=Location(lat=12.9165, lng=79.1325, name="Vellore Toll"),
             mode=TransportMode.TRUCKING,
             status=Status.IN_TRANSIT,
-            eta="2026-04-19T10:00:00Z",
+            eta="2026-04-20T18:00:00Z",
             risk_score=0.15
         ),
         Shipment(
-            id="MT-002",
-            origin=Location(lat=1.3521, lng=103.8198, name="Singapore"),
-            destination=Location(lat=33.7701, lng=-118.1937, name="Long Beach"),
-            current_location=Location(lat=5.0, lng=140.0, name="Pacific Ocean"),
-            mode=TransportMode.MARITIME,
-            status=Status.DELAYED,
-            eta="2026-04-25T18:00:00Z",
-            risk_score=0.85
+            id="TRK-WB-TS-03",
+            origin=Location(lat=22.5726, lng=88.3639, name="Kolkata Hub"),
+            destination=Location(lat=17.3850, lng=78.4867, name="Hyderabad Center"),
+            current_location=Location(lat=16.5062, lng=80.6480, name="Vijayawada Approach"),
+            mode=TransportMode.TRUCKING,
+            status=Status.REROUTED,
+            eta="2026-04-21T08:00:00Z",
+            risk_score=0.45
         )
     ]
 
@@ -116,12 +126,20 @@ async def get_risks():
     return {
         "active_disruptions": [
             {
-                "id": "D-99",
-                "type": "Weather",
+                "id": "D-IN-01",
+                "type": "Traffic",
                 "severity": "High",
-                "location": {"lat": 10.0, "lng": 135.0},
-                "radius_km": 500,
-                "description": "Tropical Storm in Pacific - Affecting Sea Lanes"
+                "location": {"lat": 26.91, "lng": 75.79},
+                "radius_km": 15,
+                "description": "Massive pile-up on NH48 causing 3-hour delay"
+            },
+            {
+                "id": "D-IN-02",
+                "type": "Weather",
+                "severity": "Medium",
+                "location": {"lat": 16.50, "lng": 80.64},
+                "radius_km": 50,
+                "description": "Heavy monsoon washouts on coastal highway"
             }
         ]
     }

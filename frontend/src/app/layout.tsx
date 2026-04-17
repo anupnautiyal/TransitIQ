@@ -15,7 +15,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased font-sans text-slate-900 selection:bg-blue-100 selection:text-blue-900">
-        <header className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-3rem)] max-w-5xl">
+        <header className="fixed top-14 left-1/2 -translate-x-1/2 z-[60] w-[calc(100%-3rem)] max-w-5xl">
           <div className="glass-vibrant px-8 py-4 rounded-[2rem] flex items-center justify-between shadow-[0_32px_120px_-20px_rgba(0,0,0,0.1)]">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200">
@@ -31,7 +31,7 @@ export default function RootLayout({
             
             <nav className="hidden md:flex items-center gap-10 text-[11px] font-bold uppercase tracking-widest text-slate-500">
               <Link href="/" className="hover:text-blue-600 transition-colors relative group py-2">
-                Logistics Hub
+                Control Tower
                 <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-blue-600 transition-all group-hover:w-full"></span>
               </Link>
               <Link href="/network" className="hover:text-blue-600 transition-colors relative group py-2">
@@ -40,6 +40,10 @@ export default function RootLayout({
               </Link>
               <Link href="/operations" className="hover:text-blue-600 transition-colors relative group py-2">
                 Operations
+                <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-blue-600 transition-all group-hover:w-full"></span>
+              </Link>
+              <Link href="/add" className="hover:text-blue-600 transition-colors relative group py-2">
+                Add Shipment
                 <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-blue-600 transition-all group-hover:w-full"></span>
               </Link>
             </nav>

@@ -19,11 +19,11 @@ export default function OperationsPage() {
   }, []);
 
   return (
-    <div className="pt-32 pb-12 min-h-screen">
+    <div className="pt-48 pb-12 min-h-screen">
       <div className="container mx-auto px-6">
         <div className="mb-10 flex items-start justify-between">
             <div>
-                <h1 className="text-4xl font-black text-slate-900 tracking-tighter mb-2">FLEET OPERATIONS</h1>
+                <h1 className="text-4xl font-black text-slate-900 tracking-tighter mb-2">GROUND FREIGHT CONTROL</h1>
                 <p className="text-sm font-medium text-slate-400 uppercase tracking-widest">Asset Management & Telemetry Console</p>
             </div>
             <div className="flex items-center gap-4">
@@ -54,7 +54,7 @@ export default function OperationsPage() {
                                         </div>
                                         <div>
                                             <p className="text-[13px] font-bold text-slate-900">{shp.id}</p>
-                                            <p className="text-[10px] text-slate-400 font-medium">Global Transit v2</p>
+                                            <p className="text-[10px] text-slate-400 font-medium">National Freight v2</p>
                                         </div>
                                     </div>
                                 </td>
@@ -89,9 +89,9 @@ export default function OperationsPage() {
                                     </div>
                                 </td>
                                 <td className="px-8 py-6 text-right">
-                                    <button className="opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest">
+                                    <a href={`/shipment/${shp.id}`} className="inline-block opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest">
                                         Details
-                                    </button>
+                                    </a>
                                 </td>
                             </tr>
                         ))}

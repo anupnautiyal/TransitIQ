@@ -25,13 +25,14 @@
 ## Milestone 3: Presentation & Polishing
 **Goal**: Create a "WOW" factor with premium UI and interaction.
 
-### Phase 4: Premium Dashboard UI
-- [ ] Build interactive 3D/2D Map visualization (Mapbox).
-- [ ] Create "Decision Support" panels (Disruption Detail Cards).
-- [ ] Implement glassmorphism design system across all components.
-- [ ] Add smooth transitions and micro-animations for data updates.
+### Phase 4: Control Tower Dashboard
+- [ ] Build interactive Mapbox visualization centered on India.
+- [ ] Implement Main Dashboard with Alerts, Shipment List, and Summary stats.
 
-### Phase 5: Final Verification & Ship
-- [ ] End-to-end testing with real-world scenarios.
-- [ ] Final performance optimization.
-- [ ] Documentation & Presentation deck preparation.
+### Phase 5: Drill-down & Management UX
+- [ ] Implement Shipment Detail Page (Timeline, delay prediction, route trace).
+- [ ] Implement Add Shipment Page (Creation form for road transport).
+
+### Phase 6: Final Verification & Ship
+- [ ] End-to-end testing with simulated India traffic scenarios.
+- [ ] Final performance optimization and documentation.

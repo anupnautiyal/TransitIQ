@@ -67,7 +67,7 @@ export default function Home() {
   };
 
   return (
-    <div className="pt-32 pb-12 min-h-screen bg-slate-50">
+    <div className="pt-48 pb-12 min-h-screen bg-slate-50">
       <div className="container mx-auto">
         {/* Command Center Status Bar */}
         <div className="flex items-center justify-between mb-8 px-1">
@@ -214,6 +214,50 @@ export default function Home() {
               )}
             </div>
           </div>
+        </div>
+
+        {/* Active Fleet List */}
+        <div className="mt-8 glass p-8 rounded-3xl animate-fade-in" style={{ animationDelay: "0.7s" }}>
+            <div className="flex items-center justify-between mb-6">
+                <h2 className="font-bold text-slate-900">Active Fleet Deployments</h2>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">India Region</span>
+            </div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                    <thead>
+                        <tr className="border-b border-slate-100">
+                            <th className="pb-3 text-[10px] uppercase font-bold text-slate-400 tracking-widest pl-2">Asset ID</th>
+                            <th className="pb-3 text-[10px] uppercase font-bold text-slate-400 tracking-widest">Origin</th>
+                            <th className="pb-3 text-[10px] uppercase font-bold text-slate-400 tracking-widest">Destination</th>
+                            <th className="pb-3 text-[10px] uppercase font-bold text-slate-400 tracking-widest">Status</th>
+                            <th className="pb-3 text-[10px] uppercase font-bold text-slate-400 tracking-widest text-right pr-2">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {shipments.map((s: any) => (
+                            <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                                <td className="py-4 pl-2">
+                                    <span className="text-xs font-black text-slate-900">{s.id}</span>
+                                </td>
+                                <td className="py-4">
+                                    <span className="text-xs font-bold text-slate-500">{s.origin.name}</span>
+                                </td>
+                                <td className="py-4">
+                                    <span className="text-xs font-bold text-slate-500">{s.destination.name}</span>
+                                </td>
+                                <td className="py-4">
+                                    <span className={`inline-flex items-center px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${s.status === 'in_transit' ? 'bg-blue-50 text-blue-600' : s.status === 'delayed' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                        {s.status.replace('_', ' ')}
+                                    </span>
+                                </td>
+                                <td className="py-4 text-right pr-2">
+                                    <a href={`/shipment/${s.id}`} className="text-[10px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-widest">View Details &rarr;</a>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         {/* Phase 3 Recommendation Dialog */}

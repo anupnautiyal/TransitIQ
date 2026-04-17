@@ -62,18 +62,59 @@ export default function NetworkPage() {
       </div>
 
       <div className="absolute bottom-8 right-8 z-10 flex flex-col gap-4">
-          <div className="glass p-4 rounded-2xl w-64 animate-fade-in shadow-2xl">
-              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Recent Risk Zones</h3>
-              <div className="space-y-2">
-                  {risks.active_disruptions.slice(0, 2).map((r: any) => (
-                      <div key={r.id} className="flex items-center gap-3">
-                          <div className={`w-2 h-2 rounded-full ${r.severity === 'High' ? 'bg-red-500' : 'bg-orange-500'}`} />
-                          <p className="text-[11px] font-bold text-slate-900 truncate">{r.description}</p>
+          <div className="glass p-4 rounded-2xl w-64 animate-fade-in shadow-2xl backdrop-blur-xl border border-white/20">
+              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Live Risk Heatmap</h3>
+              <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                      <div className="w-full flex h-2 rounded-full overflow-hidden opacity-80">
+                          <div className="w-1/4 bg-blue-400"></div>
+                          <div className="w-1/4 bg-orange-400"></div>
+                          <div className="w-1/2 bg-red-600"></div>
                       </div>
-                  ))}
+                  </div>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider text-right">Severity Spectrum</p>
               </div>
           </div>
+      </div>
+
+      {/* Global Command Ticker */}
+      <div className="absolute top-0 left-0 w-full h-10 bg-slate-900/90 backdrop-blur-md border-b border-white/10 z-50 flex items-center overflow-hidden">
+        <div className="bg-blue-600 h-full px-6 flex items-center justify-center z-10 shadow-[0_0_20px_rgba(37,99,235,0.5)]">
+            <span className="text-[10px] font-black text-white uppercase tracking-[0.2em] whitespace-nowrap">Global Feed</span>
+        </div>
+        <div className="flex-1 overflow-hidden relative">
+            <div className="flex whitespace-nowrap animate-marquee">
+                {/* Double the content for seamless infinite scroll */}
+                <div className="flex items-center gap-12 pr-12">
+                    {risks.active_disruptions.length > 0 ? risks.active_disruptions.map((r: any, idx: number) => (
+                       <div key={idx} className="flex items-center gap-3">
+                           <span className={`w-2 h-2 rounded-full ${r.severity === 'High' ? 'bg-red-500 animate-pulse' : 'bg-orange-500'}`}></span>
+                           <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">{r.location?.lat.toFixed(2)}, {r.location?.lng.toFixed(2)} - {r.description}</span>
+                       </div>
+                    )) : (
+                        <div className="flex items-center gap-3">
+                           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                           <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">GLOBAL NETWORK STABLE - NO SEVERE DISRUPTIONS DETECTED</span>
+                       </div>
+                    )}
+                </div>
+                <div className="flex items-center gap-12 pr-12">
+                    {risks.active_disruptions.length > 0 ? risks.active_disruptions.map((r: any, idx: number) => (
+                       <div key={'dup'+idx} className="flex items-center gap-3">
+                           <span className={`w-2 h-2 rounded-full ${r.severity === 'High' ? 'bg-red-500 animate-pulse' : 'bg-orange-500'}`}></span>
+                           <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">{r.location?.lat.toFixed(2)}, {r.location?.lng.toFixed(2)} - {r.description}</span>
+                       </div>
+                    )) : (
+                        <div className="flex items-center gap-3">
+                           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                           <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">GLOBAL NETWORK STABLE - NO SEVERE DISRUPTIONS DETECTED</span>
+                       </div>
+                    )}
+                </div>
+            </div>
+        </div>
       </div>
     </div>
   );
 }
+

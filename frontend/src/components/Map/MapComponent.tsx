@@ -17,6 +17,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
+  const markersRef = useRef<mapboxgl.Marker[]>([]);
 
   useEffect(() => {
     if (map.current || !mapContainer.current) return;
@@ -26,18 +27,60 @@ const MapComponent: React.FC<MapComponentProps> = ({
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: "mapbox://styles/mapbox/light-v11", // Premium Light theme
-      center: [-74.006, 40.7128], // Initial center (NY)
-      zoom: 3,
+      center: [78.9629, 20.5937], // Center over India
+      zoom: 4.5,
       antialias: true
     });
 
     map.current.addControl(new mapboxgl.NavigationControl(), "top-right");
 
     map.current.on("load", () => {
-      // Add source for routes if needed
       if (!map.current) return;
       
-      // Example visual flair: Add a subtle glow/overlay
+      // Initialize Heatmap Data Source
+      map.current.addSource('risk-data', {
+        type: 'geojson',
+        data: {
+            type: 'FeatureCollection',
+            features: []
+        }
+      });
+
+      // Add Heatmap Layer
+      map.current.addLayer({
+        id: 'risk-heat',
+        type: 'heatmap',
+        source: 'risk-data',
+        maxzoom: 9,
+        paint: {
+            'heatmap-weight': ['get', 'severity'],
+            'heatmap-intensity': [
+                'interpolate', ['linear'], ['zoom'],
+                0, 1,
+                9, 3
+            ],
+            'heatmap-color': [
+                'interpolate', ['linear'], ['heatmap-density'],
+                0, 'rgba(33,102,172,0)',
+                0.2, 'rgb(103,169,207)',
+                0.4, 'rgb(209,229,240)',
+                0.6, 'rgb(253,219,199)',
+                0.8, 'rgb(239,138,98)',
+                1, 'rgb(255,0,0)'
+            ],
+            'heatmap-radius': [
+                'interpolate', ['linear'], ['zoom'],
+                0, 20,
+                9, 60
+            ],
+            'heatmap-opacity': [
+                'interpolate', ['linear'], ['zoom'],
+                7, 1,
+                9, 0.5
+            ]
+        }
+      });
+
       map.current.addLayer({
         id: "sky",
         type: "sky",
@@ -57,11 +100,32 @@ const MapComponent: React.FC<MapComponentProps> = ({
     };
   }, [accessToken]);
 
-  // Update Markers when shipments change
+  // Update Markers and Heatmap when data changes
   useEffect(() => {
     if (!map.current) return;
     
-    // Clear existing markers (Basic implementation for Hackathon)
+    // Update Heatmap Source
+    const riskSource = map.current.getSource('risk-data') as mapboxgl.GeoJSONSource;
+    if (riskSource && risks && risks.length > 0) {
+        riskSource.setData({
+            type: 'FeatureCollection',
+            features: risks.map(r => ({
+                type: 'Feature',
+                geometry: {
+                    type: 'Point',
+                    coordinates: [r.location?.lng || 0, r.location?.lat || 0]
+                },
+                properties: {
+                    severity: r.severity === 'High' ? 1.0 : 0.5
+                }
+            }))
+        });
+    }
+
+    // Clear existing markers securely
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
+
     shipments.forEach((shp) => {
         const el = document.createElement('div');
         el.className = 'shipment-marker group cursor-pointer relative';
@@ -95,7 +159,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         el.appendChild(core);
         el.appendChild(pulse);
         
-        new mapboxgl.Marker(el)
+        const marker = new mapboxgl.Marker(el)
             .setLngLat([shp.current_location.lng, shp.current_location.lat])
             .setPopup(new mapboxgl.Popup({ offset: 15, closeButton: false, className: 'premium-popup' })
                 .setHTML(`
@@ -110,15 +174,17 @@ const MapComponent: React.FC<MapComponentProps> = ({
                     </div>
                 `))
             .addTo(map.current!);
+            
+        markersRef.current.push(marker);
     });
-  }, [shipments]);
+  }, [shipments, risks]);
 
   return (
     <div className="w-full h-full relative group">
       <div ref={mapContainer} className="w-full h-full absolute inset-0" />
-      <div className="absolute top-4 left-4 glass p-3 z-10 pointer-events-none">
+      <div className="absolute top-32 left-4 glass p-3 z-10 pointer-events-none">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Active View</p>
-          <p className="text-xs font-bold text-slate-900">Maritime & Trucking Aggregate</p>
+          <p className="text-xs font-bold text-slate-900">National Roadways Network</p>
       </div>
     </div>
   );
