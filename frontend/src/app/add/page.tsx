@@ -12,11 +12,31 @@ export default function AddShipmentPage() {
         value: ''
     });
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        // In a real app, this would POST to the backend
-        alert(`Simulated: Shipment created from ${formData.origin} to ${formData.destination}`);
-        router.push('/');
+        setIsSubmitting(true);
+        
+        try {
+            const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+            const response = await fetch(`${apiBase}/shipments`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+
+            if (!response.ok) throw new Error("Deployment failed");
+            
+            const result = await response.json();
+            console.log("Shipment deployed:", result);
+            router.push('/');
+        } catch (error) {
+            console.error("Failed to deploy shipment:", error);
+            alert("Protocol Violation: Could not establish transit instance.");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -114,9 +134,10 @@ export default function AddShipmentPage() {
                             </button>
                             <button 
                                 type="submit" 
-                                className="bg-brand-600 hover:bg-brand-700 text-white px-10 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] transition-all shadow-lg shadow-brand-500/25 hover:shadow-brand-500/40 hover:-translate-y-1 active:translate-y-0"
+                                disabled={isSubmitting}
+                                className={`bg-brand-600 hover:bg-brand-700 text-white px-10 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] transition-all shadow-lg shadow-brand-500/25 hover:shadow-brand-500/40 hover:-translate-y-1 active:translate-y-0 ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
                             >
-                                Deploy Transit Instance
+                                {isSubmitting ? 'Establishing Uplink...' : 'Deploy Transit Instance'}
                             </button>
                         </div>
                     </form>

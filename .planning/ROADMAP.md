@@ -37,10 +37,10 @@
 ## Milestone 4: Operational Scaling & ML (ACTIVE)
 **Goal**: Move from rule-based logic to predictive intelligence and live data streams.
 
-### Phase 6: Machine Learning Integration
-- [ ] Setup historical data collection pipeline for risk training.
-- [ ] Implement `train_risk_model.py` template.
-- [ ] Transition from rule-based to predictive `RiskEngine`.
+### Phase 6: Machine Learning Integration (COMPLETED)
+- [x] Setup historical data collection pipeline for risk training.
+- [x] Implement `train_risk_model.py` template.
+- [x] Transition from rule-based to predictive `RiskEngine`.
 
 ### Phase 7: Live Ocean Intelligence
 - [ ] Integrate Spire/AIS live stream for global maritime tracking.

@@ -35,26 +35,6 @@ ais_service = AISService()
 risk_engine = RiskEngine()
 rerouting_engine = ReroutingEngine(routing_service)
 
-# Global state for AIS tracking
-tracked_vessels: Dict[int, Any] = {}
-
-async def ais_callback(data: Dict[str, Any]):
-    mmsi = data.get("mmsi")
-    if mmsi:
-        tracked_vessels[mmsi] = data
-
-@app.on_event("startup")
-async def startup_event():
-    # Example bounding box for Demo (near major ports)
-    # This could be more dynamic based on active shipments
-    try:
-        # Long Beach / San Pedro area
-        boxes = [[[-90, -180], [90, 180]]] # Global low-res or specific zones
-        # asyncio.create_task(ais_service.connect_and_listen(boxes, ais_callback))
-        pass
-    except Exception as e:
-        print(f"Failed to start AIS listener: {e}")
-
 class TransportMode(str, Enum):
     MARITIME = "maritime"
     TRUCKING = "trucking"
@@ -80,69 +60,154 @@ class Shipment(BaseModel):
     eta: str
     risk_score: float = 0.0
 
-@app.get("/")
-async def root():
-    return {"message": "Welcome to TransitIQ - Smart Supply Chain Intelligence"}
+# Global state for Live Analytics
+active_disruptions: List[Dict[str, Any]] = []
+live_shipments: List[Shipment] = [
+    Shipment(
+        id="TRK-DL-MH-01",
+        origin=Location(lat=28.7041, lng=77.1025, name="New Delhi Hub"),
+        destination=Location(lat=19.0760, lng=72.8777, name="Mumbai Port"),
+        current_location=Location(lat=26.9124, lng=75.7873, name="NH48 near Jaipur"),
+        mode=TransportMode.TRUCKING,
+        status=Status.DELAYED,
+        eta="2026-04-19T10:00:00Z"
+    ),
+    Shipment(
+        id="TRK-TN-KA-02",
+        origin=Location(lat=13.0827, lng=80.2707, name="Chennai Base"),
+        destination=Location(lat=12.9716, lng=77.5946, name="Bangalore Depot"),
+        current_location=Location(lat=12.9165, lng=79.1325, name="Vellore Toll"),
+        mode=TransportMode.TRUCKING,
+        status=Status.IN_TRANSIT,
+        eta="2026-04-20T18:00:00Z"
+    ),
+    Shipment(
+        id="TRK-WB-TS-03",
+        origin=Location(lat=22.5726, lng=88.3639, name="Kolkata Hub"),
+        destination=Location(lat=17.3850, lng=78.4867, name="Hyderabad Center"),
+        current_location=Location(lat=16.5062, lng=80.6480, name="Vijayawada Approach"),
+        mode=TransportMode.TRUCKING,
+        status=Status.REROUTED,
+        eta="2026-04-21T08:00:00Z"
+    )
+]
+
+# Operational Configuration
+SIMULATE_CHAOS = True  # Set to True to force a "High Risk" event for Demo verification
+ALERT_THRESHOLD = 0.2  # Threshold to trigger an active disruption in the map feed
+
+async def refresh_intelligence():
+    """Background task to poll live APIs and update global risk state."""
+    global active_disruptions
+    while True:
+        try:
+            print(f"IntelligenceAgent: Polling live environmental data (Chaos Mode: {SIMULATE_CHAOS})...")
+            new_disruptions = []
+            
+            for s in live_shipments:
+                # 1. Live Weather Check
+                weather_data = await weather_service.get_weather_at_location(s.current_location.lat, s.current_location.lng)
+                weather_risks = weather_service.analyze_risks(weather_data, s.mode.value)
+                
+                # 2. Live Traffic Check
+                traffic_risk = await routing_service.get_traffic_at_location(s.current_location.lat, s.current_location.lng)
+                
+                # 3. Calculate Risk with ML Engine
+                s.risk_score = risk_engine.calculate_shipment_risk(
+                    weather_risks=weather_risks,
+                    traffic_data=traffic_risk,
+                    is_delayed=(s.status == Status.DELAYED),
+                    transport_mode=s.mode.value,
+                    distance_km=800.0
+                )
+
+                # 4. Chaos Injection (Demo Only)
+                if SIMULATE_CHAOS and s.id == "TRK-DL-MH-01":
+                     s.risk_score = 0.89
+                     weather_risks = [{"factor": "Tropical Cyclone Warning", "severity": "Critical"}]
+                     print(f"IntelligenceAgent: INJECTING CHAOS for {s.id}")
+                
+                print(f"IntelligenceAgent: Asset {s.id} | raw_score: {s.risk_score}")
+
+                # 5. Generate Disruptions from high-risk events
+                if s.risk_score >= ALERT_THRESHOLD:
+                    reason = "Unfavorable Conditions detected by Sensor Fusion"
+                    if weather_risks:
+                        reason = f"Severe Weather: {weather_risks[0].get('factor')}"
+                    elif traffic_risk.get("congestion") in ["heavy", "severe"]:
+                        reason = f"Major Traffic Congestion detected by Mapbox"
+                        
+                    new_disruptions.append({
+                        "id": f"D-{s.id}",
+                        "type": "Weather" if weather_risks else "Traffic",
+                        "severity": "High" if s.risk_score < 0.8 else "Critical",
+                        "location": {"lat": s.current_location.lat, "lng": s.current_location.lng},
+                        "radius_km": 25,
+                        "description": reason
+                    })
+            
+            active_disruptions = new_disruptions
+            print(f"IntelligenceAgent: Successfully updated scores. Detected {len(active_disruptions)} disruptions.")
+            
+        except Exception as e:
+            print(f"IntelligenceAgent Error: {e}")
+            
+        await asyncio.sleep(60) # Poll every 1 minute in "Chaos Mode" for faster feedback
+
+@app.on_event("startup")
+async def startup_event():
+    # Start the Proactive Intelligence Agent
+    asyncio.create_task(refresh_intelligence())
+    
+    # Optional: AIS listener could be started here too
+    pass
+
+class ShipmentCreate(BaseModel):
+    origin: str
+    destination: str
+    cargo: str
+    mode: str = "trucking"
+
+CITY_COORDINATES = {
+    "Delhi": {"lat": 28.7041, "lng": 77.1025},
+    "Mumbai": {"lat": 19.0760, "lng": 72.8777},
+    "Chennai": {"lat": 13.0827, "lng": 80.2707},
+    "Kolkata": {"lat": 22.5726, "lng": 88.3639},
+    "Bangalore": {"lat": 12.9716, "lng": 77.5946},
+    "Hyderabad": {"lat": 17.3850, "lng": 78.4867},
+    "Pune": {"lat": 18.5204, "lng": 73.8567},
+    "Ahmedabad": {"lat": 23.0225, "lng": 72.5714},
+}
 
 @app.get("/shipments", response_model=List[Shipment])
 async def get_shipments():
-    # Placeholder for database/simulation integration
-    return [
-        Shipment(
-            id="TRK-DL-MH-01",
-            origin=Location(lat=28.7041, lng=77.1025, name="New Delhi Hub"),
-            destination=Location(lat=19.0760, lng=72.8777, name="Mumbai Port"),
-            current_location=Location(lat=26.9124, lng=75.7873, name="NH48 near Jaipur"),
-            mode=TransportMode.TRUCKING,
-            status=Status.DELAYED,
-            eta="2026-04-19T10:00:00Z",
-            risk_score=0.85
-        ),
-        Shipment(
-            id="TRK-TN-KA-02",
-            origin=Location(lat=13.0827, lng=80.2707, name="Chennai Base"),
-            destination=Location(lat=12.9716, lng=77.5946, name="Bangalore Depot"),
-            current_location=Location(lat=12.9165, lng=79.1325, name="Vellore Toll"),
-            mode=TransportMode.TRUCKING,
-            status=Status.IN_TRANSIT,
-            eta="2026-04-20T18:00:00Z",
-            risk_score=0.15
-        ),
-        Shipment(
-            id="TRK-WB-TS-03",
-            origin=Location(lat=22.5726, lng=88.3639, name="Kolkata Hub"),
-            destination=Location(lat=17.3850, lng=78.4867, name="Hyderabad Center"),
-            current_location=Location(lat=16.5062, lng=80.6480, name="Vijayawada Approach"),
-            mode=TransportMode.TRUCKING,
-            status=Status.REROUTED,
-            eta="2026-04-21T08:00:00Z",
-            risk_score=0.45
-        )
-    ]
+    # Returns the dynamically updated shipments
+    return live_shipments
+
+@app.post("/shipments", response_model=Shipment)
+async def create_shipment(data: ShipmentCreate):
+    origin_coords = CITY_COORDINATES.get(data.origin, CITY_COORDINATES["Delhi"])
+    dest_coords = CITY_COORDINATES.get(data.destination, CITY_COORDINATES["Bangalore"])
+    
+    new_shipment = Shipment(
+        id=f"TRK-{data.origin[:2].upper()}-{data.destination[:2].upper()}-{len(live_shipments)+1:02d}",
+        origin=Location(lat=origin_coords["lat"], lng=origin_coords["lng"], name=f"{data.origin} Hub"),
+        destination=Location(lat=dest_coords["lat"], lng=dest_coords["lng"], name=f"{data.destination} Center"),
+        current_location=Location(lat=origin_coords["lat"], lng=origin_coords["lng"], name=f"Departing {data.origin}"),
+        mode=TransportMode(data.mode),
+        status=Status.IN_TRANSIT,
+        eta="2026-04-21T12:00:00Z",
+        risk_score=0.0
+    )
+    
+    live_shipments.append(new_shipment)
+    print(f"IntelligenceAgent: New shipment registered: {new_shipment.id}")
+    return new_shipment
 
 @app.get("/risks")
 async def get_risks():
-    """Returns a list of active disruptions/risks."""
-    return {
-        "active_disruptions": [
-            {
-                "id": "D-IN-01",
-                "type": "Traffic",
-                "severity": "High",
-                "location": {"lat": 26.91, "lng": 75.79},
-                "radius_km": 15,
-                "description": "Massive pile-up on NH48 causing 3-hour delay"
-            },
-            {
-                "id": "D-IN-02",
-                "type": "Weather",
-                "severity": "Medium",
-                "location": {"lat": 16.50, "lng": 80.64},
-                "radius_km": 50,
-                "description": "Heavy monsoon washouts on coastal highway"
-            }
-        ]
-    }
+    """Returns a list of dynamically discovered disruptions."""
+    return {"active_disruptions": active_disruptions}
 
 @app.get("/shipments/{shipment_id}/route")
 async def get_shipment_route(shipment_id: str):
@@ -203,18 +268,32 @@ async def calculate_reroute(shipment_id: str):
                  elif len(route_data["routes"]) > 0:
                      path_data = route_data["routes"][0]["geometry"]
              
+             # Calculate Dynamic Risks for the UI comparison
+             current_context = await get_shipments()
+             target_s = next((s for s in current_context if s.id == shipment_id), shipment)
+             
+             # ML prediction for recommended route (Assume 0 weather/traffic risk for the alternate)
+             rec_risk = risk_engine.calculate_shipment_risk(
+                weather_risks=[], 
+                traffic_data=None, 
+                is_delayed=False,
+                transport_mode=target_s.mode.value,
+                distance_km=900.0 # Alternate might be longer
+             )
+
              return {
                 "shipment_id": shipment_id,
-                "current_route": {"time": "4.2h", "risk": 0.85},
+                "current_route": {"time": "4.2h", "risk": target_s.risk_score},
                 "recommended_route": {
                     "time": "4.8h", 
-                    "risk": 0.15,
+                    "risk": rec_risk,
                     "path_data": path_data,
                     "reason": "Avoiding Severe Weather Cell D-99"
                 }
              }
 
     except Exception as e:
+        print(f"Reroute error: {e}")
         pass
 
     return {
@@ -222,7 +301,7 @@ async def calculate_reroute(shipment_id: str):
         "current_route": {"time": "4.2h", "risk": 0.85},
         "recommended_route": {
             "time": "4.8h", 
-            "risk": 0.15,
+            "risk": 0.05,
             "path_data": {"type": "LineString", "coordinates": [[shipment.current_location.lng, shipment.current_location.lat], [shipment.destination.lng, shipment.destination.lat]]},
             "reason": "Avoiding Severe Weather Cell D-99"
         }

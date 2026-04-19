@@ -61,7 +61,7 @@ export default function Navbar() {
                 <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-20 animate-ping"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600">Node: NY-01</span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600">Node: MH-01</span>
            </div>
            
            <button 

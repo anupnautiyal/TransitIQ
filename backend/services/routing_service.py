@@ -58,3 +58,42 @@ class RoutingService:
                 return response.json()
             except Exception as e:
                 return {"error": str(e)}
+    async def get_traffic_at_location(self, lat: float, lng: float) -> Dict[str, Any]:
+        """
+        Checks for live traffic congestion at a specific coordinate by querying a 
+        small 1km segment near the location.
+        """
+        if not self.access_token:
+            return {"error": "Mapbox Token missing"}
+
+        # Define a small 1km segment (offset by ~0.009 degrees lat)
+        segment = f"{lng},{lat};{lng},{lat+0.01}"
+        url = f"{self.base_url}/{segment}"
+        
+        params = {
+            "access_token": self.access_token,
+            "annotations": "duration,congestion",
+            "geometries": "geojson",
+            "overview": "full"
+        }
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                data = response.json()
+                
+                if "routes" in data and len(data["routes"]) > 0:
+                    route = data["routes"][0]
+                    # Mapbox returns duration and typical duration
+                    duration = route.get("duration", 1)
+                    typical = route.get("weight", duration) # 'weight' in driving-traffic is a good proxy for typical
+                    
+                    return {
+                        "duration": duration,
+                        "duration_typical": typical,
+                        "congestion": route.get("legs", [{}])[0].get("annotation", {}).get("congestion", ["unknown"])[0]
+                    }
+                return {"congestion": "unknown"}
+            except Exception as e:
+                return {"error": str(e)}
