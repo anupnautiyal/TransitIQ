@@ -8,12 +8,14 @@ interface MapComponentProps {
   accessToken: string;
   shipments?: any[];
   risks?: any[];
+  routeGeoJSON?: any;
 }
 
 const MapComponent: React.FC<MapComponentProps> = ({ 
   accessToken, 
   shipments = [], 
-  risks = [] 
+  risks = [],
+  routeGeoJSON = null
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -90,6 +92,35 @@ const MapComponent: React.FC<MapComponentProps> = ({
           "sky-atmosphere-sun-intensity": 15
         }
       });
+
+      // Add Route Layer source
+      map.current.addSource('route-data', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: []
+          }
+        }
+      });
+
+      // Add Route Layer
+      map.current.addLayer({
+        id: 'route-line',
+        type: 'line',
+        source: 'route-data',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': '#3b82f6', // Blueprint line
+          'line-width': 4,
+          'line-opacity': 0.8
+        }
+      });
     });
 
     return () => {
@@ -120,6 +151,38 @@ const MapComponent: React.FC<MapComponentProps> = ({
                 }
             }))
         });
+    }
+
+    // Update Route Source
+    const routeSource = map.current.getSource('route-data') as mapboxgl.GeoJSONSource;
+    if (routeSource) {
+        if (routeGeoJSON) {
+            routeSource.setData(routeGeoJSON);
+            
+            // Adjust line color if it's an optimized route or current route
+            const isOptimized = routeGeoJSON?.properties?.isOptimized;
+            map.current.setPaintProperty('route-line', 'line-color', isOptimized ? '#10b981' : '#3b82f6');
+            
+            // Fit bounds to route
+            try {
+                const coordinates = routeGeoJSON.geometry.coordinates;
+                if (coordinates && coordinates.length > 0) {
+                    const bounds = coordinates.reduce(function(bounds: mapboxgl.LngLatBounds, coord: any) {
+                        return bounds.extend(coord);
+                    }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
+                    map.current.fitBounds(bounds, { padding: 50, duration: 1000 });
+                }
+            } catch (e) {}
+        } else {
+            routeSource.setData({
+                type: 'Feature',
+                properties: {},
+                geometry: {
+                    type: 'LineString',
+                    coordinates: []
+                }
+            });
+        }
     }
 
     // Clear existing markers securely
@@ -177,15 +240,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
             
         markersRef.current.push(marker);
     });
-  }, [shipments, risks]);
+  }, [shipments, risks, routeGeoJSON]);
 
   return (
     <div className="w-full h-full relative group">
       <div ref={mapContainer} className="w-full h-full absolute inset-0" />
-      <div className="absolute top-32 left-4 glass p-3 z-10 pointer-events-none">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Active View</p>
-          <p className="text-xs font-bold text-slate-900">National Roadways Network</p>
-      </div>
     </div>
   );
 };

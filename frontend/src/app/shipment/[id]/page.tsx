@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import RerouteDialog from "@/components/Intelligence/RerouteDialog";
+import MapComponent from "@/components/Map/MapComponent";
 
 export default function ShipmentDetailPage() {
     const params = useParams();
@@ -11,6 +12,8 @@ export default function ShipmentDetailPage() {
     const [progress, setProgress] = useState(0);
     const [activeRecommendation, setActiveRecommendation] = useState<any>(null);
     const [isCalculating, setIsCalculating] = useState(false);
+    const [routeData, setRouteData] = useState<any>(null);
+    const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || "";
 
     useEffect(() => {
         // Fetch specific shipment. For now, fetch all and filter by ID.
@@ -19,6 +22,17 @@ export default function ShipmentDetailPage() {
             .then(data => {
                 const found = data.find((s: any) => s.id === params.id);
                 setShipment(found);
+                
+                // Fetch current route
+                if (found) {
+                     fetch(`http://localhost:8000/shipments/${found.id}/route`)
+                        .then(r => r.json())
+                        .then(rData => {
+                             if (rData.path_data) {
+                                 setRouteData(rData.path_data);
+                             }
+                        }).catch(e => console.error("Error fetching route", e));
+                }
             })
             .catch(err => console.error("Error fetching shipment", err));
     }, [params.id]);
@@ -61,6 +75,14 @@ export default function ShipmentDetailPage() {
             const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
             await fetch(`${BASE_URL}/shipments/${shipment.id}/execute`, { method: "POST" });
             setShipment({ ...shipment, status: "Rerouted", risk_score: 0.1 });
+            
+            // Update the map to show the optimized route
+            if (activeRecommendation?.recommended_route?.path_data) {
+                 const newRouteData = activeRecommendation.recommended_route.path_data;
+                 newRouteData.properties = { isOptimized: true }; // for green color rendering
+                 setRouteData({ ...newRouteData }); // new reference to trigger render
+            }
+            
             setActiveRecommendation(null);
         } catch (e) {
             console.error("Failed to execute reroute", e);
@@ -91,40 +113,35 @@ export default function ShipmentDetailPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
                     {/* Telemetry Overview */}
                     <div className="glass p-8 rounded-3xl col-span-2 shadow-lg border border-slate-100 flex flex-col justify-center">
-                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6 border-b border-slate-100 pb-4">Route Timeline</h3>
+                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 border-b border-slate-100 pb-4">Live Route Map</h3>
                         
-                        <div className="relative flex items-center justify-between mt-8 mb-4">
-                            {/* Line connecting nodes */}
-                            <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-100 -z-10 -translate-y-1/2 rounded-full"></div>
-                            
-                            {/* Animated Progress Line */}
-                            <div 
-                                className={`absolute top-1/2 left-0 h-1 -z-10 -translate-y-1/2 rounded-full transition-all duration-[3000ms] ease-out ${isDelayed ? 'bg-orange-400' : 'bg-blue-600'}`}
-                                style={{ width: `${progress}%` }}
-                            ></div>
-
-                            {/* Origin */}
-                            <div className="flex flex-col items-center">
-                                <div className="w-6 h-6 rounded-full bg-blue-600 border-4 border-white shadow-md"></div>
-                                <p className="mt-3 text-sm font-bold text-slate-800">{shipment.origin.name}</p>
-                                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Origin</p>
-                            </div>
-
-                            {/* Current Position */}
-                            <div className="flex flex-col items-center">
-                                <div className={`w-8 h-8 rounded-full border-4 border-white shadow-md flex items-center justify-center animate-pulse ${isDelayed ? 'bg-red-500' : 'bg-blue-600'}`}>
-                                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                        <div className="relative w-full h-[360px] bg-slate-100 rounded-xl overflow-hidden mt-4 border border-slate-200 shadow-inner">
+                            {MAPBOX_TOKEN ? (
+                                <MapComponent 
+                                    accessToken={MAPBOX_TOKEN} 
+                                    shipments={[shipment]}
+                                    routeGeoJSON={routeData}
+                                />
+                            ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center">
+                                    <p className="text-sm font-bold text-slate-500 mb-2">Mapbox Token Required</p>
+                                    <p className="text-[10px] text-slate-400">Please set NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN in your environment variables to view the live route.</p>
                                 </div>
-                                <p className="mt-3 text-sm font-bold text-slate-800">{shipment.current_location.name}</p>
-                                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Current</p>
-                            </div>
+                            )}
+                        </div>
 
-                            {/* Destination */}
-                            <div className="flex flex-col items-center">
-                                <div className="w-6 h-6 rounded-full bg-slate-200 border-4 border-white shadow-md"></div>
-                                <p className="mt-3 text-sm font-bold text-slate-800">{shipment.destination.name}</p>
-                                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Destination</p>
-                            </div>
+                        <div className="flex items-center justify-between mt-6">
+                             <div className="flex items-center gap-2">
+                                 <div className="w-3 h-3 rounded-full bg-blue-600 border-2 border-white shadow-sm"></div>
+                                 <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{shipment.origin.name}</span>
+                             </div>
+                             <div className="flex-1 border-t border-dashed border-slate-300 mx-4 relative">
+                                  <div className="absolute top-1/2 left-1/2 -translate-y-1/2 -translate-x-1/2 text-[9px] font-black text-slate-400 px-2 bg-[#fdfdfd] tracking-widest">EN ROUTE</div>
+                             </div>
+                             <div className="flex items-center gap-2">
+                                 <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{shipment.destination.name}</span>
+                                 <div className="w-3 h-3 rounded-full border-2 border-slate-400 shadow-sm"></div>
+                             </div>
                         </div>
                     </div>
 

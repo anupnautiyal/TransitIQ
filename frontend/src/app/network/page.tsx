@@ -40,8 +40,12 @@ export default function NetworkPage() {
       </div>
 
       {/* Floating Operational Interface */}
-      <div className="absolute top-32 left-8 z-10">
+      <div className="absolute top-44 left-8 z-10">
           <div className="glass-vibrant p-6 rounded-[2rem] w-80 animate-fade-in">
+              <div className="mb-4 pb-4 border-b border-white/20">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Active View</p>
+                  <p className="text-xs font-black text-slate-900">National Roadways Network</p>
+              </div>
               <div className="flex items-center justify-between mb-4">
                   <h2 className="font-display font-black text-slate-900 tracking-tighter">NETWORK STATUS</h2>
                   <span className="text-[10px] bg-slate-900 text-white px-2 py-0.5 rounded uppercase font-bold">INTELLIGENCE ACTIVE</span>

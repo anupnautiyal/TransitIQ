@@ -144,18 +144,86 @@ async def get_risks():
         ]
     }
 
+@app.get("/shipments/{shipment_id}/route")
+async def get_shipment_route(shipment_id: str):
+    """Fetches the current route GeoJSON for a shipment."""
+    shipments = await get_shipments()
+    shipment = next((s for s in shipments if s.id == shipment_id), None)
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+        
+    route_data = await routing_service.get_route(
+        [shipment.origin.lng, shipment.origin.lat], 
+        [shipment.destination.lng, shipment.destination.lat]
+    )
+    
+    if "routes" in route_data and len(route_data["routes"]) > 0:
+         return {
+            "path_data": route_data["routes"][0]["geometry"]
+         }
+    return {"path_data": None}
+
 @app.post("/shipments/{shipment_id}/reroute")
 async def calculate_reroute(shipment_id: str):
     """Calculates an alternative route for a shipment."""
-    # Mock lookup for demo
-    # In reality, this would fetch current shipment data and find alternatives
+    shipments = await get_shipments()
+    shipment = next((s for s in shipments if s.id == shipment_id), None)
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+
+    # Fetch alternative routes using engine
+    # As a mock alternative, we ask Mapbox to avoid an area or just pick an alternative route.
+    # The rerouting_engine.get_alternatives does this.
+    try:
+         main_route = await routing_service.get_route(
+            [shipment.current_location.lng, shipment.current_location.lat], 
+            [shipment.destination.lng, shipment.destination.lat]
+         )
+         
+         # Mock an alternate path by finding an alternative route or just slightly modifying it
+         # Let's request alternatives from Mapbox directly via a custom call if possible, or just use the first alternative
+         
+         params = {
+            "access_token": routing_service.access_token,
+            "geometries": "geojson",
+            "overview": "full",
+            "alternatives": "true"
+         }
+         
+         import httpx
+         async with httpx.AsyncClient() as client:
+             url = f"{routing_service.base_url}/{shipment.current_location.lng},{shipment.current_location.lat};{shipment.destination.lng},{shipment.destination.lat}"
+             response = await client.get(url, params=params)
+             route_data = response.json()
+             
+             path_data = None
+             if "routes" in route_data:
+                 if len(route_data["routes"]) > 1:
+                     path_data = route_data["routes"][1]["geometry"] # take the alternate
+                 elif len(route_data["routes"]) > 0:
+                     path_data = route_data["routes"][0]["geometry"]
+             
+             return {
+                "shipment_id": shipment_id,
+                "current_route": {"time": "4.2h", "risk": 0.85},
+                "recommended_route": {
+                    "time": "4.8h", 
+                    "risk": 0.15,
+                    "path_data": path_data,
+                    "reason": "Avoiding Severe Weather Cell D-99"
+                }
+             }
+
+    except Exception as e:
+        pass
+
     return {
         "shipment_id": shipment_id,
         "current_route": {"time": "4.2h", "risk": 0.85},
         "recommended_route": {
             "time": "4.8h", 
             "risk": 0.15,
-            "path_data": "...", # Encoded Mapbox geometry
+            "path_data": {"type": "LineString", "coordinates": [[shipment.current_location.lng, shipment.current_location.lat], [shipment.destination.lng, shipment.destination.lat]]},
             "reason": "Avoiding Severe Weather Cell D-99"
         }
     }
