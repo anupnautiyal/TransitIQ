@@ -15,22 +15,26 @@ Modern global supply chains manage millions of concurrent shipments across highl
 - **Premium Intelligence**: A world-class UI/UX that offers deep visibility and actionable insights.
 
 ## Tech Stack
-- **Backend**: Python (FastAPI)
-- **Frontend**: React/Next.js (Premium Aesthetics)
-- **APIs**: Tomorrow.io (Weather), Mapbox (Maps/Routing)
-- **Infrastructure**: Dockerized (Optional but recommended for scalability)
+- **Backend**: Python (FastAPI), Pydantic, httpx, pandas, scikit-learn
+- **Frontend**: Next.js 16.2.4 (React 19), Tailwind CSS, Mapbox GL 3.22.0
+- **APIs**: Tomorrow.io (Weather), Mapbox (Routing), Spire (AIS - Proposed)
+- **Infrastructure**: Dockerized (Internal/Shared)
 
 ## Requirements
 
 ### Validated
-(None yet - starting greenfield)
+- [x] Real-time data ingestion (Tomorrow.io, Mapbox)
+- [x] Rule-based Risk Engine (Weather + Traffic)
+- [x] Dynamic Rerouting Algorithm (Mapbox Alternatives)
+- [x] Premium Dashboard with animated visualizations (Light Mode)
+- [x] Shipment Detail Drill-down UX (Route Trace, Timeline)
+- [x] Operational View for multi-shipment tracking (Network Map)
 
 ### Active
-- [ ] Real-time data ingestion (Tomorrow.io, Mapbox)
-- [ ] Hybrid Risk Engine (Maritime + Trucking)
-- [ ] Predictive Anomaly Detection
-- [ ] Dynamic Rerouting Algorithm
-- [ ] Premium Dashboard with animated visualizations
+- [ ] Predictive Anomaly Detection (ML Risk Model training)
+- [ ] Real-time AIS stream integration (Live ship tracking)
+- [ ] Historical disruption data collection pipeline
+- [ ] Multi-region routing optimization
 
 ### Out of Scope
 - [Mobile Native App] - Focus is on web-first intelligence platform.
