@@ -57,7 +57,8 @@ class RiskEngine:
         traffic_data: Dict[str, Any] = None,
         is_delayed: bool = False,
         transport_mode: str = "trucking",
-        distance_km: float = 500.0
+        distance_km: float = 500.0,
+        priority: str = "Standard"
     ) -> float:
         """
         Calculates a unified risk score (0.0 to 1.0).
@@ -93,6 +94,10 @@ class RiskEngine:
                     'distance_km': distance_km
                 }])
                 ml_score = self.model.predict(features)[0]
+                # Priority boost for high-value/urgent cargo
+                safe_priority = (priority if isinstance(priority, str) else "Standard").lower()
+                if safe_priority == "high":
+                    ml_score += 0.2
                 # Clamp between 0.0 and 1.0
                 return max(0.0, min(round(float(ml_score), 2), 1.0))
             except Exception as e:
@@ -112,6 +117,12 @@ class RiskEngine:
             score += 1.0 * self.operational_weight
         # Distance (Minor normalization to 2000km like the trainer)
         score += (distance_km / 2000.0) * 0.05
+        
+        # 4. Priority Factor (Premium Brainstorm Feature)
+        safe_priority = (priority if isinstance(priority, str) else "Standard").lower()
+        if safe_priority == "high":
+            score += 0.20
+            
         # Mode
         if safe_mode == "maritime":
             score += 0.05

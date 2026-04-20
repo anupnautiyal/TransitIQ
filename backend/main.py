@@ -1,5 +1,8 @@
 import os
 import asyncio
+import json
+import uuid
+import logging
 from enum import Enum
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket
@@ -49,6 +52,7 @@ class Location(BaseModel):
     lat: float
     lng: float
     name: Optional[str] = None
+    place_id: Optional[str] = None
 
 class Shipment(BaseModel):
     id: str
@@ -59,6 +63,9 @@ class Shipment(BaseModel):
     status: Status
     eta: str
     risk_score: float = 0.0
+    cargo_type: str = "General"
+    priority: str = "Standard"
+    value_usd: float = 0.0
 
 # Global state for Live Analytics
 active_disruptions: List[Dict[str, Any]] = []
@@ -118,7 +125,8 @@ async def refresh_intelligence():
                     traffic_data=traffic_risk,
                     is_delayed=(s.status == Status.DELAYED),
                     transport_mode=s.mode.value,
-                    distance_km=800.0
+                    distance_km=800.0,
+                    priority=s.priority
                 )
 
                 # 4. Chaos Injection (Demo Only)
@@ -154,19 +162,66 @@ async def refresh_intelligence():
             
         await asyncio.sleep(60) # Poll every 1 minute in "Chaos Mode" for faster feedback
 
+SHIPMENTS_FILE = os.path.join(os.path.dirname(__file__), "data", "shipments.json")
+
+def save_shipments_to_disk() -> bool:
+    """Saves live shipments to JSON file with error handling."""
+    try:
+        os.makedirs(os.path.dirname(SHIPMENTS_FILE), exist_ok=True)
+        with open(SHIPMENTS_FILE, "w") as f:
+            json.dump([s.dict() for s in live_shipments], f, indent=2)
+        return True
+    except (OSError, TypeError) as e:
+        print(f"IntelligenceAgent: Failed to save shipments: {e}")
+        return False
+    except Exception as e:
+        print(f"IntelligenceAgent: Unexpected error during save: {e}")
+        return False
+
+def load_shipments_from_disk():
+    global live_shipments
+    if os.path.exists(SHIPMENTS_FILE):
+        try:
+            with open(SHIPMENTS_FILE, "r") as f:
+                data = json.load(f)
+                live_shipments = [Shipment(**s) for s in data]
+                print(f"IntelligenceAgent: Restored {len(live_shipments)} shipments from disk.")
+        except Exception as e:
+            print(f"IntelligenceAgent: Failed to restore shipments: {e}")
+
 @app.on_event("startup")
 async def startup_event():
+    # Restore state
+    load_shipments_from_disk()
     # Start the Proactive Intelligence Agent
     asyncio.create_task(refresh_intelligence())
-    
-    # Optional: AIS listener could be started here too
     pass
 
+class LocationCreate(BaseModel):
+    name: str
+    lat: float
+    lng: float
+
 class ShipmentCreate(BaseModel):
-    origin: str
-    destination: str
+    origin: LocationCreate
+    destination: LocationCreate
     cargo: str
     mode: str = "trucking"
+    priority: str = "Standard"
+    value: float = 0.0
+
+@app.get("/geocoding/search")
+async def search_geocoding(query: str):
+    """Proxy for Mapbox Geocoding with validation."""
+    clean_query = query.strip()
+    if not clean_query:
+        raise HTTPException(status_code=400, detail="Query parameter cannot be empty or whitespace.")
+    
+    try:
+        return await routing_service.search_location(clean_query)
+    except Exception as e:
+        print(f"Geocoding Proxy Error: {e}")
+        raise HTTPException(status_code=502, detail="Geocoding service is temporarily unavailable.")
 
 CITY_COORDINATES = {
     "Delhi": {"lat": 28.7041, "lng": 77.1025},
@@ -186,21 +241,27 @@ async def get_shipments():
 
 @app.post("/shipments", response_model=Shipment)
 async def create_shipment(data: ShipmentCreate):
-    origin_coords = CITY_COORDINATES.get(data.origin, CITY_COORDINATES["Delhi"])
-    dest_coords = CITY_COORDINATES.get(data.destination, CITY_COORDINATES["Bangalore"])
+    # Collision-resistant ID generation
+    origin_code = (data.origin.name[:2] if data.origin.name else "XX").upper()
+    dest_code = (data.destination.name[:2] if data.destination.name else "XX").upper()
+    unique_token = str(uuid.uuid4())[:4].upper()
     
     new_shipment = Shipment(
-        id=f"TRK-{data.origin[:2].upper()}-{data.destination[:2].upper()}-{len(live_shipments)+1:02d}",
-        origin=Location(lat=origin_coords["lat"], lng=origin_coords["lng"], name=f"{data.origin} Hub"),
-        destination=Location(lat=dest_coords["lat"], lng=dest_coords["lng"], name=f"{data.destination} Center"),
-        current_location=Location(lat=origin_coords["lat"], lng=origin_coords["lng"], name=f"Departing {data.origin}"),
+        id=f"TRK-{origin_code}-{dest_code}-{unique_token}",
+        origin=Location(lat=data.origin.lat, lng=data.origin.lng, name=data.origin.name),
+        destination=Location(lat=data.destination.lat, lng=data.destination.lng, name=data.destination.name),
+        current_location=Location(lat=data.origin.lat, lng=data.origin.lng, name=f"Departing {data.origin.name}"),
         mode=TransportMode(data.mode),
         status=Status.IN_TRANSIT,
         eta="2026-04-21T12:00:00Z",
-        risk_score=0.0
+        risk_score=0.0,
+        cargo_type=data.cargo,
+        priority=data.priority,
+        value_usd=data.value
     )
     
     live_shipments.append(new_shipment)
+    save_shipments_to_disk()
     print(f"IntelligenceAgent: New shipment registered: {new_shipment.id}")
     return new_shipment
 

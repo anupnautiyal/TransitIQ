@@ -1,5 +1,6 @@
 import os
 import httpx
+import urllib.parse
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 
@@ -97,3 +98,40 @@ class RoutingService:
                 return {"congestion": "unknown"}
             except Exception as e:
                 return {"error": str(e)}
+    async def search_location(self, query: str) -> List[Dict[str, Any]]:
+        """Searches for locations in India using Mapbox Geocoding API."""
+        if not self.access_token:
+            return []
+
+        # Restrict to India (bbox or country filter)
+        encoded_query = urllib.parse.quote(query)
+        url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{encoded_query}.json"
+        
+        params = {
+            "access_token": self.access_token,
+            "country": "IN",
+            "types": "place,locality",
+            "limit": 5
+        }
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                data = response.json()
+                
+                results = []
+                for feature in data.get("features", []):
+                    center = feature.get("center")
+                    # Validate center is a sequence with at least 2 elements [lng, lat]
+                    if isinstance(center, (list, tuple)) and len(center) >= 2:
+                        results.append({
+                            "name": feature.get("place_name"),
+                            "lng": center[0],
+                            "lat": center[1]
+                        })
+                    # Invalid centers are skipped to prevent downstream failures
+                return results
+            except Exception as e:
+                print(f"Geocoding error: {e}")
+                return []
