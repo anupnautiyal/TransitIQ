@@ -9,13 +9,15 @@ interface MapComponentProps {
   shipments?: any[];
   risks?: any[];
   routeGeoJSON?: any;
+  selectedShipment?: any;
 }
 
 const MapComponent: React.FC<MapComponentProps> = ({ 
   accessToken, 
   shipments = [], 
   risks = [],
-  routeGeoJSON = null
+  routeGeoJSON = null,
+  selectedShipment = null
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -131,6 +133,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
     };
   }, [accessToken]);
 
+  // Persistent marker references keyed by shipment ID
+  const markersMap = useRef<{[key: string]: mapboxgl.Marker}>({});
+
   // Update Markers and Heatmap when data changes
   useEffect(() => {
     if (!map.current) return;
@@ -158,12 +163,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (routeSource) {
         if (routeGeoJSON) {
             routeSource.setData(routeGeoJSON);
-            
-            // Adjust line color if it's an optimized route or current route
             const isOptimized = routeGeoJSON?.properties?.isOptimized;
             map.current.setPaintProperty('route-line', 'line-color', isOptimized ? '#10b981' : '#3b82f6');
             
-            // Fit bounds to route
             try {
                 const coordinates = routeGeoJSON.geometry.coordinates;
                 if (coordinates && coordinates.length > 0) {
@@ -177,70 +179,106 @@ const MapComponent: React.FC<MapComponentProps> = ({
             routeSource.setData({
                 type: 'Feature',
                 properties: {},
-                geometry: {
-                    type: 'LineString',
-                    coordinates: []
-                }
+                geometry: { type: 'LineString', coordinates: [] }
             });
         }
     }
 
-    // Clear existing markers securely
-    markersRef.current.forEach(m => m.remove());
-    markersRef.current = [];
+    // Sync shipments markers
+    const currentIds = new Set(shipments.map(s => s.id));
+    
+    // Remove markers for shipments that no longer exist
+    Object.keys(markersMap.current).forEach(id => {
+        if (!currentIds.has(id)) {
+            markersMap.current[id].remove();
+            delete markersMap.current[id];
+        }
+    });
 
     shipments.forEach((shp) => {
-        const el = document.createElement('div');
-        el.className = 'shipment-marker group cursor-pointer relative';
-        el.style.width = '32px';
-        el.style.height = '32px';
-        el.style.display = 'flex';
-        el.style.alignItems = 'center';
-        el.style.justifyContent = 'center';
+        // Fix 5: Defensive guard for missing or invalid location
+        if (!shp.current_location || typeof shp.current_location.lng !== 'number' || typeof shp.current_location.lat !== 'number') {
+            return;
+        }
 
         const color = shp.risk_score > 0.7 ? '#ef4444' : (shp.status === 'Rerouted' ? '#10b981' : '#3b82f6');
         
-        // Inner core
-        const core = document.createElement('div');
-        core.style.width = '12px';
-        core.style.height = '12px';
-        core.style.borderRadius = '50%';
-        core.style.backgroundColor = color;
-        core.style.border = '2px solid white';
-        core.style.boxShadow = `0 0 10px ${color}`;
-        core.style.zIndex = '2';
+        // Fix 4: Guard status replace
+        const displayStatus = (typeof shp.status === 'string' ? shp.status : 'Unknown').replace('_', ' ');
+        const popupHTML = `
+            <div class="p-3 font-sans min-w-[140px]">
+                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Asset ID: ${shp.id}</p>
+                <div class="flex items-center justify-between mb-2">
+                    <p class="text-xs font-black text-slate-900 uppercase">${displayStatus}</p>
+                    <span class="w-1.5 h-1.5 rounded-full" style="background-color: ${color}"></span>
+                </div>
+                <div class="h-[1px] bg-slate-100 my-2"></div>
+                <p class="text-[10px] text-slate-500 font-medium">Risk Intensity: <span class="font-bold text-slate-900">${(shp.risk_score * 100).toFixed(0)}%</span></p>
+            </div>
+        `;
 
-        // Outer pulse
-        const pulse = document.createElement('div');
-        pulse.className = 'animate-pulse-glow';
-        pulse.style.position = 'absolute';
-        pulse.style.inset = '0';
-        pulse.style.borderRadius = '50%';
-        pulse.style.backgroundColor = color;
-        pulse.style.opacity = '0.3';
-
-        el.appendChild(core);
-        el.appendChild(pulse);
-        
-        const marker = new mapboxgl.Marker(el)
-            .setLngLat([shp.current_location.lng, shp.current_location.lat])
-            .setPopup(new mapboxgl.Popup({ offset: 15, closeButton: false, className: 'premium-popup' })
-                .setHTML(`
-                    <div class="p-3 font-sans min-w-[140px]">
-                        <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Asset ID: ${shp.id}</p>
-                        <div class="flex items-center justify-between mb-2">
-                            <p class="text-xs font-black text-slate-900 uppercase">${shp.status}</p>
-                            <span class="w-1.5 h-1.5 rounded-full" style="background-color: ${color}"></span>
-                        </div>
-                        <div class="h-[1px] bg-slate-100 my-2"></div>
-                        <p class="text-[10px] text-slate-500 font-medium">Risk Intensity: <span class="font-bold text-slate-900">${(shp.risk_score * 100).toFixed(0)}%</span></p>
-                    </div>
-                `))
-            .addTo(map.current!);
+        if (markersMap.current[shp.id]) {
+            // Update existing marker position smoothly
+            markersMap.current[shp.id].setLngLat([shp.current_location.lng, shp.current_location.lat]);
             
-        markersRef.current.push(marker);
+            // Fix 6: Refresh popup content for existing markers
+            const popup = markersMap.current[shp.id].getPopup();
+            if (popup) {
+                popup.setHTML(popupHTML);
+            } else {
+                markersMap.current[shp.id].setPopup(
+                    new mapboxgl.Popup({ offset: 15, closeButton: false, className: 'premium-popup' }).setHTML(popupHTML)
+                );
+            }
+            
+            // Update the icon color if it changed
+            const el = markersMap.current[shp.id].getElement();
+            const svg = el.querySelector('svg');
+            if (svg) svg.style.fill = color;
+            
+            const pulse = el.querySelector('.pulse-disk') as HTMLDivElement;
+            if (pulse) pulse.style.backgroundColor = color;
+        } else {
+            // Create new truck marker
+            const el = document.createElement('div');
+            el.className = 'shipment-marker group cursor-pointer relative';
+            el.style.width = '40px';
+            el.style.height = '40px';
+            el.style.display = 'flex';
+            el.style.alignItems = 'center';
+            el.style.justifyContent = 'center';
+
+            // Custom Truck SVG
+            el.innerHTML = `
+                <div class="pulse-disk animate-pulse-glow" style="position: absolute; inset: 4px; border-radius: 50%; background-color: ${color}; opacity: 0.2;"></div>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="${color}" style="z-index: 2; transition: fill 0.3s ease;" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm11.5-8.5l1.5 2V13h-3v-3.5h1.5zM18 18c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z" />
+                </svg>
+            `;
+
+            const marker = new mapboxgl.Marker(el)
+                .setLngLat([shp.current_location.lng, shp.current_location.lat])
+                .setPopup(new mapboxgl.Popup({ offset: 15, closeButton: false, className: 'premium-popup' })
+                    .setHTML(popupHTML))
+                .addTo(map.current!);
+            
+            markersMap.current[shp.id] = marker;
+        }
     });
   }, [shipments, risks, routeGeoJSON]);
+
+  // Focus on selected shipment
+  useEffect(() => {
+    if (!map.current || !selectedShipment) return;
+    
+    const { lng, lat } = selectedShipment.current_location;
+    map.current.flyTo({
+      center: [lng, lat],
+      zoom: 12,
+      essential: true,
+      duration: 2000
+    });
+  }, [selectedShipment]);
 
   return (
     <div className="w-full h-full relative group">

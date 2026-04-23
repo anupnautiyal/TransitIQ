@@ -74,9 +74,16 @@ class RiskEngine:
 
         traffic_congestion = 1.0
         if traffic_data:
-            duration = traffic_data.get("duration", 1)
-            typical = traffic_data.get("duration_typical", duration)
-            traffic_congestion = duration / typical if typical > 0 else 1.0
+            # Check if we have the new TomTom format
+            congestion_idx = traffic_data.get("congestion_index")
+            if congestion_idx is not None and isinstance(congestion_idx, (int, float)) and 0 <= congestion_idx <= 1:
+                # Any positive congestion_index increases traffic_congestion (penalty triggers for > 1.0)
+                traffic_congestion = 1.0 + congestion_idx
+            else:
+                # Fallback to old Mapbox duration ratio
+                duration = traffic_data.get("duration", 1)
+                typical = traffic_data.get("duration_typical", duration)
+                traffic_congestion = duration / typical if typical > 0 else 1.0
 
         # Safe handling of transport_mode
         safe_mode = (transport_mode or "trucking").lower()

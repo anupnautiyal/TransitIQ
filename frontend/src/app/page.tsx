@@ -25,7 +25,11 @@ export default function Home() {
     }
     loadData();
 
-    const interval = setInterval(loadData, 30000);
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        loadData();
+      }
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -197,6 +201,8 @@ export default function Home() {
                 accessToken={MAPBOX_TOKEN} 
                 shipments={shipments} 
                 risks={risks.active_disruptions} 
+                routeGeoJSON={activeRecommendation?.route_geometry}
+                selectedShipment={selectedShipment}
                />
                
                {/* Map overlay UI */}
@@ -247,7 +253,7 @@ export default function Home() {
                   <p className="text-sm font-bold text-slate-800 mb-4 leading-relaxed">{risk.description}</p>
                   
                   <button 
-                    onClick={() => handleReviewReroute(shipments[0]?.id || "SHP-001")}
+                    onClick={() => handleReviewReroute(risk.shipment_id)}
                     className={`w-full py-2.5 px-4 flex items-center justify-center gap-2 text-[10px] font-bold rounded-xl uppercase tracking-widest transition-all ${risk.severity === 'High' ? 'bg-red-600 hover:bg-red-700 text-white shadow-md shadow-red-200' : 'bg-slate-900 hover:bg-slate-800 text-white shadow-md shadow-slate-200'}`}
                   >
                     <span>Analyze Impact</span>
@@ -336,7 +342,7 @@ export default function Home() {
           </div>
       </div>
 
-      {activeRecommendation && (
+      {activeRecommendation && selectedShipment && (
         <RerouteDialog 
           shipment={selectedShipment}
           recommendation={activeRecommendation}
