@@ -210,7 +210,7 @@ async def refresh_intelligence():
         except Exception as e:
             print(f"IntelligenceAgent Error: {e}")
             
-        await asyncio.sleep(10) # Faster cycle for Demo (10s instead of 60s)
+        await asyncio.sleep(60) # Increased to 60s to conserve TomTom quota (345/2500 used)
 
 SHIPMENTS_FILE = os.path.join(os.path.dirname(__file__), "data", "shipments.json")
 
@@ -319,6 +319,16 @@ async def create_shipment(data: ShipmentCreate):
 async def get_risks():
     """Returns a list of dynamically discovered disruptions."""
     return {"active_disruptions": active_disruptions}
+
+@app.get("/quota/status")
+async def get_quota_status():
+    """Returns the current TomTom API quota usage."""
+    return {
+        "used": traffic_service.usage_today,
+        "total": traffic_service.max_daily_quota,
+        "remaining": max(0, traffic_service.max_daily_quota - traffic_service.usage_today),
+        "percentage": round((traffic_service.usage_today / traffic_service.max_daily_quota) * 100, 2)
+    }
 
 @app.get("/shipments/{shipment_id}/route")
 async def get_shipment_route(shipment_id: str):
