@@ -32,6 +32,12 @@ export function useFleetSocket(options: UseFleetSocketOptions = {}) {
     timestamp: 0,
   });
 
+  // Keep latest callback in a ref to prevent socket reconnect storms
+  const onPositionUpdateRef = useRef(onPositionUpdate);
+  useEffect(() => {
+    onPositionUpdateRef.current = onPositionUpdate;
+  }, [onPositionUpdate]);
+
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
@@ -56,7 +62,7 @@ export function useFleetSocket(options: UseFleetSocketOptions = {}) {
               timestamp: data.timestamp || Date.now() / 1000,
             };
             setFleetData(fleetUpdate);
-            onPositionUpdate?.(fleetUpdate);
+            onPositionUpdateRef.current?.(fleetUpdate);
           }
         } catch (e) {
           // ignore parse errors
@@ -81,7 +87,7 @@ export function useFleetSocket(options: UseFleetSocketOptions = {}) {
       reconnectAttemptRef.current++;
       reconnectTimeoutRef.current = setTimeout(connect, delay);
     }
-  }, [url, onPositionUpdate]);
+  }, [url]);
 
   useEffect(() => {
     connect();

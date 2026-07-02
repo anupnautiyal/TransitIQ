@@ -255,8 +255,6 @@ async def refresh_intelligence():
                 await asyncio.sleep(0.5)
                 continue
             
-            steps = max(1, int(simulation_state["steps_per_tick"] * simulation_state["speed"]))
-            
             # Carry over active disruptions that are already resolved/rerouted,
             # as long as their corresponding shipment is still in transit (not delivered).
             active_shipment_ids = {s.id for s in live_shipments if s.status != Status.DELIVERED}
@@ -278,8 +276,16 @@ async def refresh_intelligence():
                     if not s.route_geometry:
                         continue
                 
+                # Calculate step size dynamically for this shipment so it takes exactly 2 minutes (120s) at 1x speed.
+                # Total ticks at 1x speed = 120s / tick_interval = 120 / 1.5 = 80 ticks.
+                target_duration = 120.0  # 2 minutes
+                ticks_needed = target_duration / simulation_state["tick_interval"]
+                base_steps = s.total_steps / ticks_needed
+                steps_float = base_steps * simulation_state["speed"]
+                shipment_steps = max(1, int(steps_float))
+                
                 # ── Move the truck ──
-                for _ in range(steps):
+                for _ in range(shipment_steps):
                     if s.current_step < s.total_steps - 1:
                         s.current_step += 1
                         pos = s.route_geometry[s.current_step]

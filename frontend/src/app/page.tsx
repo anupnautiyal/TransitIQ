@@ -20,6 +20,7 @@ export default function Home() {
   const [activeRecommendation, setActiveRecommendation] = useState<any>(null);
   const [selectedShipment, setSelectedShipment] = useState<any>(null);
   const [rerouteToast, setRerouteToast] = useState<any>(null);
+  const [dismissedShipments, setDismissedShipments] = useState<string[]>([]);
 
   const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || "";
 
@@ -30,10 +31,19 @@ export default function Home() {
     setSimState(data.simulation);
     setLoading(false);
 
-    // Check for auto-reroute events
-    const rerouteEvent = data.disruptions.find((d: any) => d.auto_rerouted && !rerouteToast);
+    // Check for auto-reroute events that haven't been dismissed yet for this truck
+    const rerouteEvent = data.disruptions.find(
+      (d: any) => d.auto_rerouted && !rerouteToast && !dismissedShipments.includes(d.shipment_id)
+    );
     if (rerouteEvent) {
       setRerouteToast(rerouteEvent);
+    }
+  }, [rerouteToast, dismissedShipments]);
+
+  const handleDismissToast = useCallback(() => {
+    if (rerouteToast) {
+      setDismissedShipments((prev) => [...prev, rerouteToast.shipment_id]);
+      setRerouteToast(null);
     }
   }, [rerouteToast]);
 
@@ -505,7 +515,7 @@ export default function Home() {
       {rerouteToast && (
         <RerouteToast
           disruption={rerouteToast}
-          onDismiss={() => setRerouteToast(null)}
+          onDismiss={handleDismissToast}
         />
       )}
     </div>
