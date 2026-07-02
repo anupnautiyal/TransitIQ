@@ -1,7 +1,8 @@
 fastapi
-uvicorn
+uvicorn[standard]
 pydantic
 httpx
 python-dotenv
 pandas
 scikit-learn
+websockets

@@ -21,3 +21,34 @@ export async function fetchRisks() {
     return { active_disruptions: [] };
   }
 }
+
+// ── Simulation Control ──
+
+export async function playSimulation() {
+  const res = await fetch(`${BASE_URL}/simulation/play`, { method: "POST" });
+  return res.json();
+}
+
+export async function pauseSimulation() {
+  const res = await fetch(`${BASE_URL}/simulation/pause`, { method: "POST" });
+  return res.json();
+}
+
+export async function resetSimulation() {
+  const res = await fetch(`${BASE_URL}/simulation/reset`, { method: "POST" });
+  return res.json();
+}
+
+export async function setSimulationSpeed(multiplier: number) {
+  const res = await fetch(`${BASE_URL}/simulation/speed`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ multiplier }),
+  });
+  return res.json();
+}
+
+export async function getSimulationStatus() {
+  const res = await fetch(`${BASE_URL}/simulation/status`);
+  return res.json();
+}

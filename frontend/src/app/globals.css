@@ -128,3 +128,13 @@ body::before {
 .mapboxgl-popup-content {
   @apply !bg-white/90 !backdrop-blur-md !border !border-slate-100 !shadow-2xl !rounded-2xl !font-sans;
 }
+
+/* Toast slide animation */
+.toast-enter {
+  animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideInRight {
+  0% { opacity: 0; transform: translateX(100%); }
+  100% { opacity: 1; transform: translateX(0); }
+}

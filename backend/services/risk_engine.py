@@ -101,6 +101,15 @@ class RiskEngine:
                     'distance_km': distance_km
                 }])
                 ml_score = self.model.predict(features)[0]
+                
+                # Apply safety-critical boosts to ML score based on weather severity
+                if weather_sev == 3:
+                    ml_score += 0.35  # Critical weather boost
+                elif weather_sev == 2:
+                    ml_score += 0.20  # High weather boost
+                elif weather_sev == 1:
+                    ml_score += 0.10  # Moderate weather boost
+                
                 # Priority boost for high-value/urgent cargo
                 safe_priority = (priority if isinstance(priority, str) else "Standard").lower()
                 if safe_priority == "high":

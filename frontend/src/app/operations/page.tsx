@@ -72,8 +72,8 @@ export default function OperationsPage() {
                                 </td>
                                 <td className="px-8 py-7">
                                     <div className="flex items-center gap-2.5">
-                                        <div className={`w-2 h-2 rounded-full shadow-[0_0_8px] ${shp.status === 'Rerouted' ? 'bg-emerald-500 shadow-emerald-200' : 'bg-brand-500 shadow-brand-100'}`} />
-                                        <span className={`text-[11px] font-black uppercase tracking-wider ${shp.status === 'Rerouted' ? 'text-emerald-600' : 'text-slate-800'}`}>{shp.status.replace('_', ' ')}</span>
+                                        <div className={`w-2 h-2 rounded-full shadow-[0_0_8px] ${shp.status === 'rerouted' ? 'bg-emerald-500 shadow-emerald-200' : 'bg-brand-500 shadow-brand-100'}`} />
+                                        <span className={`text-[11px] font-black uppercase tracking-wider ${shp.status === 'rerouted' ? 'text-emerald-600' : 'text-slate-800'}`}>{shp.status.replace('_', ' ')}</span>
                                     </div>
                                 </td>
                                 <td className="px-8 py-7">

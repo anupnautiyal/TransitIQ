@@ -45,6 +45,8 @@ module.exports = {
         'float': 'float 6s ease-in-out infinite',
         'pulse-glow': 'pulse-glow 2.5s infinite',
         'shimmer': 'shimmer 2s linear infinite',
+        'marquee': 'marquee 2s linear infinite',
+        'slide-in-right': 'slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
       },
       keyframes: {
         fadeIn: {
@@ -61,7 +63,15 @@ module.exports = {
         },
         shimmer: {
           '100%': { transform: 'translateX(100%)' }
-        }
+        },
+        marquee: {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(300%)' },
+        },
+        slideInRight: {
+          '0%': { opacity: '0', transform: 'translateX(100%)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
       }
     },
   },
