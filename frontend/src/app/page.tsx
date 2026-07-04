@@ -247,7 +247,12 @@ export default function Home() {
             </svg>
           </div>
           <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 mb-2">Stability Index</h3>
-          <p className="text-4xl font-display font-black text-slate-800 tabular-nums">98.2%</p>
+          <p className="text-4xl font-display font-black text-slate-800 tabular-nums">
+            {shipments.length
+              ? ((1 - (shipments.reduce((acc: number, s: any) => acc + (s.risk_score || 0), 0) / shipments.length)) * 100).toFixed(1)
+              : "100.0"}
+            %
+          </p>
         </div>
 
         {/* Avg Risk Index */}

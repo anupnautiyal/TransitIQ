@@ -270,6 +270,8 @@ async def refresh_intelligence():
                 if s.status == Status.DELIVERED:
                     continue
                 
+                initial_status = s.status
+                
                 # Fetch route if missing
                 if not s.route_geometry:
                     await fetch_route_for_shipment(s)
@@ -343,7 +345,7 @@ async def refresh_intelligence():
                 # ── Auto-Reroute Logic ──
                 if (
                     s.risk_score >= 0.7
-                    and s.status != Status.REROUTED
+                    and initial_status == Status.DELAYED
                     and s.id == demo["shipment_id"]
                     and not disruption_triggered.get(s.id)
                 ):
