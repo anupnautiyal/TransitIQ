@@ -141,6 +141,11 @@ export default function Home() {
   const getProgress = (s: any) =>
     s.total_steps ? Math.round((s.current_step / s.total_steps) * 100) : 0;
 
+  // Derive active disruptions (exclude auto-rerouted or resolved)
+  const activeDisruptions = (risks.active_disruptions || []).filter(
+    (d: any) => !d.auto_rerouted && !d.resolved
+  );
+
   return (
     <div className="pt-52 pb-32 min-h-screen relative w-full max-w-[1700px] mx-auto px-8 lg:px-12">
       {/* Background Orbs */}
@@ -217,7 +222,7 @@ export default function Home() {
           </div>
           <div className="flex items-baseline gap-3">
             <p className="text-7xl lg:text-8xl font-display font-black text-red-600 tracking-tighter tabular-nums drop-shadow-sm">
-              {risks.active_disruptions.filter((d: any) => !d.auto_rerouted && !d.resolved).length}
+              {activeDisruptions.length}
             </p>
             <span className="text-lg font-bold text-red-400">severe risks</span>
           </div>
@@ -225,7 +230,7 @@ export default function Home() {
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Severity</p>
               <p className="text-xs font-black text-red-600 uppercase tracking-wider">
-                {risks.active_disruptions.filter((d: any) => !d.auto_rerouted && !d.resolved).length > 2 ? "Critical" : "Elevated"}
+                {activeDisruptions.length > 2 ? "Critical" : "Elevated"}
               </p>
             </div>
             <div className="w-full h-2.5 bg-red-100 rounded-full overflow-hidden border border-red-200">
@@ -286,7 +291,7 @@ export default function Home() {
               <MapComponent
                 accessToken={MAPBOX_TOKEN}
                 shipments={shipments}
-                risks={risks.active_disruptions}
+                risks={activeDisruptions}
                 routeGeoJSON={activeRecommendation?.route_geometry}
                 selectedShipment={selectedShipment}
               />
@@ -338,7 +343,7 @@ export default function Home() {
           </div>
 
           <div className="flex-1 overflow-y-auto pr-2 space-y-4">
-            {risks.active_disruptions.length === 0 ? (
+            {activeDisruptions.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center p-6">
                 <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center mb-4">
                   <svg className="w-6 h-6 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -349,7 +354,7 @@ export default function Home() {
                 <p className="text-xs text-slate-400 mt-1">No active disruptions.</p>
               </div>
             ) : (
-              risks.active_disruptions.map((risk: any) => (
+              activeDisruptions.map((risk: any) => (
                 <div
                   key={risk.id}
                   className={`p-5 rounded-2xl border transition-all duration-300 hover:shadow-lg ${
