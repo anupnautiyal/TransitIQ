@@ -286,7 +286,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         return;
 
       const color =
-        shp.risk_score > 0.7 ? "#ef4444" : shp.status === "rerouted" ? "#10b981" : "#3b82f6";
+        shp.status === "rerouted" ? "#10b981" : shp.risk_score > 0.7 ? "#ef4444" : "#3b82f6";
       const displayStatus = (typeof shp.status === "string" ? shp.status : "unknown").replace(
         "_",
         " "

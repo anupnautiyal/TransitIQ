@@ -310,6 +310,8 @@ async def refresh_intelligence():
                     # Inject demo disruption
                     s.risk_score = demo["risk_score"]
                     weather_risks = demo["weather_risks"]
+                    if s.status == Status.IN_TRANSIT:
+                        s.status = Status.DELAYED
                     print(f"DISRUPTION: Triggering demo event for {s.id} at {progress_pct:.0%}")
                 else:
                     # Live weather check
@@ -332,6 +334,11 @@ async def refresh_intelligence():
                         distance_km=200.0,
                         priority=s.priority,
                     )
+                    
+                    if s.risk_score >= 0.7 and s.status == Status.IN_TRANSIT:
+                        s.status = Status.DELAYED
+                    elif s.risk_score < 0.7 and s.status == Status.DELAYED:
+                        s.status = Status.IN_TRANSIT
                 
                 # ── Auto-Reroute Logic ──
                 if (

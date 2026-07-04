@@ -68,7 +68,7 @@ export default function ShipmentDetailPage() {
         try {
             const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
             await fetch(`${BASE_URL}/shipments/${shipment.id}/execute`, { method: "POST" });
-            setShipment({ ...shipment, status: "Rerouted", risk_score: 0.1 });
+            setShipment({ ...shipment, status: "rerouted", risk_score: 0.1 });
             
             if (activeRecommendation?.recommended_route?.path_data) {
                  const newRouteData = activeRecommendation.recommended_route.path_data;

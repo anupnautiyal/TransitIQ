@@ -217,7 +217,7 @@ export default function Home() {
           </div>
           <div className="flex items-baseline gap-3">
             <p className="text-7xl lg:text-8xl font-display font-black text-red-600 tracking-tighter tabular-nums drop-shadow-sm">
-              {risks.active_disruptions.length}
+              {risks.active_disruptions.filter((d: any) => !d.auto_rerouted && !d.resolved).length}
             </p>
             <span className="text-lg font-bold text-red-400">severe risks</span>
           </div>
@@ -225,7 +225,7 @@ export default function Home() {
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Severity</p>
               <p className="text-xs font-black text-red-600 uppercase tracking-wider">
-                {risks.active_disruptions.length > 2 ? "Critical" : "Elevated"}
+                {risks.active_disruptions.filter((d: any) => !d.auto_rerouted && !d.resolved).length > 2 ? "Critical" : "Elevated"}
               </p>
             </div>
             <div className="w-full h-2.5 bg-red-100 rounded-full overflow-hidden border border-red-200">
