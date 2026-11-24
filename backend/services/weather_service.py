@@ -19,9 +19,21 @@ class WeatherService:
     def __init__(self):
         self.api_key = os.getenv("TOMORROW_API_KEY")
         self.base_url = "https://api.tomorrow.io/v4/weather/forecast"
+        # 15-minute spatial cache (~10km resolution) to conserve Tomorrow.io free quota
+        self.cache: Dict[str, Dict[str, Any]] = {}
+        self.cache_ttl = 900  # 15 mins
         
     async def get_weather_at_location(self, lat: float, lng: float) -> Dict[str, Any]:
         """Fetches current and forecast weather, overlays simulated weather cells when matched."""
+        # 15-min cache check (round to 1 decimal place ~11km)
+        cache_key = f"{round(lat, 1)},{round(lng, 1)}"
+        import time
+        now = time.time()
+        if cache_key in self.cache:
+            entry = self.cache[cache_key]
+            if now - entry["timestamp"] < self.cache_ttl:
+                return entry["data"]
+
         weather_data = {}
         if self.api_key:
             params = {
@@ -82,6 +94,8 @@ class WeatherService:
             weather_data["timelines"]["hourly"][0]["values"].update(active_cell["values"])
             weather_data["simulated_cell"] = active_cell["name"]
 
+        import time
+        self.cache[cache_key] = {"data": weather_data, "timestamp": time.time()}
         return weather_data
 
     def analyze_risks(self, weather_data: Dict[str, Any], transport_mode: str) -> List[Dict[str, Any]]:

@@ -40,90 +40,74 @@ const DemoControls: React.FC<DemoControlsProps> = ({
 
   const handlePlayPause = async () => {
     try {
-      if (running) {
-        await pauseSimulation();
-      } else {
-        await playSimulation();
-      }
+      if (running) await pauseSimulation();
+      else await playSimulation();
       onPlayPause();
-    } catch (e) {
-      console.error("Play/pause failed", e);
-    }
+    } catch (e) { console.error("Play/pause failed", e); }
   };
 
   const handleSpeed = async (newSpeed: number) => {
     try {
       await setSimulationSpeed(newSpeed);
       onSpeedChange(newSpeed);
-    } catch (e) {
-      console.error("Speed change failed", e);
-    }
+    } catch (e) { console.error("Speed change failed", e); }
   };
 
   const handleReset = async () => {
     try {
       await resetSimulation();
       onReset();
-    } catch (e) {
-      console.error("Reset failed", e);
-    }
+    } catch (e) { console.error("Reset failed", e); }
   };
 
   return (
-    <div className="absolute bottom-6 left-6 z-20">
-      <div className="bg-white/95 backdrop-blur-xl border border-white/60 rounded-2xl shadow-[0_16px_48px_rgba(0,0,0,0.12)] w-[300px] overflow-hidden">
+    <div className="absolute bottom-4 left-4 z-20">
+      <div className="bg-surface-100/95 backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-panel w-[260px] overflow-hidden">
         {/* Header */}
-        <div className="px-5 pt-4 pb-3 border-b border-slate-100">
+        <div className="px-4 pt-3 pb-2 border-b border-white/[0.06]">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${running ? "bg-emerald-500 animate-pulse" : "bg-slate-300"}`} />
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-                Demo Simulation
-              </span>
+              <div className={`w-1.5 h-1.5 rounded-full ${running ? "bg-teal-400 animate-pulse-dot" : "bg-slate-500"}`} />
+              <span className="text-[10px] font-mono text-slate-400">SIMULATION</span>
             </div>
-            <span className="text-xs font-bold text-slate-800 tabular-nums font-mono">
+            <span className="text-xs font-mono font-semibold text-accent-400 tabular-nums">
               {formatTime(elapsed)}
             </span>
           </div>
         </div>
 
-        {/* Progress Bar */}
-        <div className="px-5 pt-3">
+        {/* Progress */}
+        <div className="px-4 pt-3">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Progress</span>
-            <span className="text-[10px] font-black text-brand-600 tabular-nums">{progress.toFixed(0)}%</span>
+            <span className="text-[9px] font-mono text-slate-500">PROGRESS</span>
+            <span className="text-[10px] font-mono text-accent-400 tabular-nums">{progress.toFixed(0)}%</span>
           </div>
-          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div className="progress-track">
             <div
-              className="h-full bg-gradient-to-r from-brand-500 to-emerald-500 rounded-full transition-all duration-300"
+              className="progress-fill bg-gradient-to-r from-accent-600 to-teal-500"
               style={{ width: `${progress}%` }}
             />
           </div>
           <div className="flex items-center justify-between mt-1.5">
-            <span className="text-[9px] text-slate-400 font-medium">
-              {delivered}/{shipments.length} delivered
-            </span>
-            <span className="text-[9px] text-slate-400 font-medium">
-              {shipments.length - delivered} in transit
-            </span>
+            <span className="text-[9px] text-slate-600">{delivered}/{shipments.length} delivered</span>
+            <span className="text-[9px] text-slate-600">{shipments.length - delivered} in transit</span>
           </div>
         </div>
 
         {/* Controls */}
-        <div className="p-5 pt-4">
-          {/* Play/Pause + Reset */}
-          <div className="flex items-center gap-3 mb-4">
+        <div className="p-4 pt-3 space-y-3">
+          <div className="flex items-center gap-2">
             <button
               onClick={handlePlayPause}
-              className={`flex-1 h-11 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-[0.15em] transition-all ${
+              className={`flex-1 h-9 rounded-lg flex items-center justify-center gap-1.5 text-[10px] font-semibold transition-all ${
                 running
-                  ? "bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-900/20"
-                  : "bg-brand-600 text-white hover:bg-brand-700 shadow-lg shadow-brand-500/30"
+                  ? "bg-surface-300 text-slate-300 hover:bg-surface-400 border border-white/[0.06]"
+                  : "bg-accent-600 text-white hover:bg-accent-500 shadow-glow-accent"
               }`}
             >
               {running ? (
                 <>
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
                     <rect x="6" y="4" width="4" height="16" rx="1" />
                     <rect x="14" y="4" width="4" height="16" rx="1" />
                   </svg>
@@ -131,7 +115,7 @@ const DemoControls: React.FC<DemoControlsProps> = ({
                 </>
               ) : (
                 <>
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M8 5v14l11-7z" />
                   </svg>
                   Play
@@ -140,32 +124,92 @@ const DemoControls: React.FC<DemoControlsProps> = ({
             </button>
             <button
               onClick={handleReset}
-              className="h-11 px-4 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-wider"
+              className="h-9 px-3 rounded-lg bg-surface-200 border border-white/[0.06] text-slate-400 hover:text-white hover:bg-surface-300 transition-all flex items-center justify-center"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              Reset
             </button>
           </div>
 
-          {/* Speed Selector */}
+          {/* Speed */}
           <div>
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">Speed</p>
-            <div className="flex gap-2">
+            <p className="text-[9px] font-mono text-slate-500 mb-1.5">SPEED</p>
+            <div className="flex gap-1.5">
               {[1, 2, 4].map((s) => (
                 <button
                   key={s}
                   onClick={() => handleSpeed(s)}
-                  className={`flex-1 h-9 rounded-lg text-[11px] font-black tabular-nums transition-all ${
+                  className={`flex-1 h-7 rounded text-[10px] font-mono font-semibold transition-all ${
                     speed === s
-                      ? "bg-brand-600 text-white shadow-md shadow-brand-500/25"
-                      : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+                      ? "bg-accent-600 text-white shadow-glow-accent"
+                      : "bg-surface-200 text-slate-500 border border-white/[0.06] hover:text-slate-300"
                   }`}
                 >
                   {s}x
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Trigger Hazard on Any Truck */}
+          <div className="pt-2 border-t border-white/[0.06]">
+            <p className="text-[9px] font-mono text-slate-500 mb-1.5">SIMULATE HAZARD</p>
+            <div className="flex flex-col gap-1.5">
+              <select
+                id="hazard-truck-select"
+                aria-label="Select truck to disrupt"
+                className="w-full bg-surface-200 border border-white/[0.06] rounded px-2 py-1 text-[10px] font-mono text-slate-300 outline-none"
+                defaultValue={shipments[0]?.id || ""}
+              >
+                {shipments.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.id} ({s.origin?.name?.split(" ")[0]} → {s.destination?.name?.split(" ")[0]})
+                  </option>
+                ))}
+              </select>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={async () => {
+                    const sel = (document.getElementById("hazard-truck-select") as HTMLSelectElement)?.value;
+                    if (!sel) return;
+                    const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+                    await fetch(`${BASE_URL}/simulation/inject-disruption`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        shipment_id: sel,
+                        disruption_type: "Traffic",
+                        description: `Sudden congestion and road hazard reported on route ${sel}`,
+                        severity: "Critical",
+                      }),
+                    });
+                  }}
+                  className="flex-1 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-[9px] font-semibold transition-all text-center"
+                >
+                  🚨 Inject Traffic
+                </button>
+                <button
+                  onClick={async () => {
+                    const sel = (document.getElementById("hazard-truck-select") as HTMLSelectElement)?.value;
+                    if (!sel) return;
+                    const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+                    await fetch(`${BASE_URL}/simulation/inject-disruption`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        shipment_id: sel,
+                        disruption_type: "Weather",
+                        description: `Severe squall and flash flood warning on sector ${sel}`,
+                        severity: "Critical",
+                      }),
+                    });
+                  }}
+                  className="flex-1 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-[9px] font-semibold transition-all text-center"
+                >
+                  ⛈️ Inject Storm
+                </button>
+              </div>
             </div>
           </div>
         </div>

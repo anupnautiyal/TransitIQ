@@ -133,16 +133,35 @@ DEMO_SHIPMENTS = [
     ),
 ]
 
-# Disruption config for the Mumbai→Pune demo truck
-DEMO_DISRUPTION = {
-    "shipment_id": "TRK-MH-MH-01",
-    "trigger_at_pct": 0.45,          # trigger at 45% of route
-    "risk_score": 0.92,
-    "weather_risks": [{"factor": "Heavy Rainfall & Flooding", "severity": "Critical"}],
-    "disruption_type": "Weather",
-    "description": "Severe rainfall warning on Mumbai-Pune Expressway near Lonavala",
-    "auto_reroute_reason": "Avoiding Heavy Rainfall & Flooding near Lonavala — rerouting via alternate highway",
+# Disruption configs for demo trucks
+DISRUPTION_SCENARIOS = {
+    "TRK-MH-MH-01": {
+        "trigger_at_pct": 0.45,
+        "risk_score": 0.92,
+        "weather_risks": [{"factor": "Heavy Rainfall & Flooding", "severity": "Critical"}],
+        "disruption_type": "Weather",
+        "description": "Severe rainfall warning on Mumbai-Pune Expressway near Lonavala",
+        "auto_reroute_reason": "Avoiding Heavy Rainfall & Flooding near Lonavala — rerouting via alternate highway",
+    },
+    "TRK-DL-MH-02": {
+        "trigger_at_pct": 0.50,
+        "risk_score": 0.88,
+        "weather_risks": [{"factor": "Severe Highway Fog & Congestion", "severity": "Critical"}],
+        "disruption_type": "Traffic",
+        "description": "Massive gridlock & dense fog reported on NH-48 corridor near Kotputli",
+        "auto_reroute_reason": "Bypassing NH-48 major bottleneck — rerouting via Western Peripheral Expressway",
+    },
+    "TRK-TN-KA-03": {
+        "trigger_at_pct": 0.40,
+        "risk_score": 0.85,
+        "weather_risks": [{"factor": "Flash Storm & Waterlogging", "severity": "Critical"}],
+        "disruption_type": "Weather",
+        "description": "Flash storm and waterlogging alert near Vellore bypass",
+        "auto_reroute_reason": "Rerouting via Chittoor highway to circumvent Vellore storm sector",
+    },
 }
+
+DEMO_DISRUPTION = DISRUPTION_SCENARIOS["TRK-MH-MH-01"]
 
 # Global state
 active_disruptions: List[Dict[str, Any]] = []
@@ -301,28 +320,29 @@ async def refresh_intelligence():
                     continue
                 
                 # ── Risk Assessment ──
-                # Check for demo disruption injection
                 progress_pct = s.current_step / s.total_steps if s.total_steps > 0 else 0
-                demo = DEMO_DISRUPTION
+                scenario = DISRUPTION_SCENARIOS.get(s.id)
+                weather_risks = []
+                
+                # Check if this truck hits its preset disruption scenario
                 if (
-                    s.id == demo["shipment_id"]
-                    and progress_pct >= demo["trigger_at_pct"]
+                    scenario
+                    and progress_pct >= scenario["trigger_at_pct"]
                     and not disruption_triggered.get(s.id)
                 ):
-                    # Inject demo disruption
-                    s.risk_score = demo["risk_score"]
-                    weather_risks = demo["weather_risks"]
+                    s.risk_score = scenario["risk_score"]
+                    weather_risks = scenario.get("weather_risks", [])
                     if s.status == Status.IN_TRANSIT:
                         s.status = Status.DELAYED
-                    print(f"DISRUPTION: Triggering demo event for {s.id} at {progress_pct:.0%}")
+                    print(f"DISRUPTION: Triggering event for {s.id} at {progress_pct:.0%}")
                 else:
-                    # Live weather check
+                    # Live weather check (cached)
                     weather_data = await weather_service.get_weather_at_location(
                         s.current_location.lat, s.current_location.lng
                     )
                     weather_risks = weather_service.analyze_risks(weather_data, s.mode.value)
                     
-                    # Live traffic check
+                    # Live traffic check (cached)
                     traffic_risk = await traffic_service.get_traffic_at_location(
                         s.current_location.lat, s.current_location.lng
                     )
@@ -342,11 +362,10 @@ async def refresh_intelligence():
                     elif s.risk_score < 0.7 and s.status == Status.DELAYED:
                         s.status = Status.IN_TRANSIT
                 
-                # ── Auto-Reroute Logic ──
+                # ── Universal Auto-Reroute Logic (for ANY truck reaching high risk) ──
                 if (
                     s.risk_score >= 0.7
                     and initial_status == Status.DELAYED
-                    and s.id == demo["shipment_id"]
                     and not disruption_triggered.get(s.id)
                 ):
                     print(f"AUTO-REROUTE: {s.id} risk={s.risk_score:.2f}, fetching alternative...")
@@ -359,16 +378,20 @@ async def refresh_intelligence():
                         s.status = Status.REROUTED
                         new_steps = s.total_steps
                         
+                        disr_type = scenario["disruption_type"] if scenario else "Risk Anomaly"
+                        disr_desc = scenario["description"] if scenario else f"Traffic & weather disruption detected on active corridor for {s.id}"
+                        reroute_reason = scenario["auto_reroute_reason"] if scenario else "Calculated optimal avoidance path around high-risk sector"
+                        
                         new_disruptions.append({
                             "id": f"D-{s.id}-{int(time.time())}",
                             "shipment_id": s.id,
-                            "type": demo["disruption_type"],
+                            "type": disr_type,
                             "severity": "Critical",
                             "location": {"lat": s.current_location.lat, "lng": s.current_location.lng},
                             "radius_km": 30,
-                            "description": demo["description"],
+                            "description": disr_desc,
                             "auto_rerouted": True,
-                            "auto_reroute_reason": demo["auto_reroute_reason"],
+                            "auto_reroute_reason": reroute_reason,
                             "old_route_steps": old_route_steps,
                             "new_route_steps": new_steps,
                         })
@@ -557,6 +580,53 @@ async def simulation_status():
         "elapsed_seconds": simulation_state["elapsed_seconds"],
         "shipments": progress,
     }
+
+class InjectDisruptionRequest(BaseModel):
+    shipment_id: str
+    disruption_type: str = "Traffic"
+    description: Optional[str] = None
+    severity: str = "Critical"
+
+@app.post("/simulation/inject-disruption")
+async def inject_disruption(req: InjectDisruptionRequest):
+    """Allows manual/click-to-disrupt injection for any truck."""
+    shipment = next((s for s in live_shipments if s.id == req.shipment_id), None)
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+
+    shipment.risk_score = 0.95
+    shipment.status = Status.DELAYED
+    desc = req.description or f"Manual hazard event injected on route for {shipment.id}"
+
+    active_disruptions.append({
+        "id": f"D-{shipment.id}-{int(time.time())}",
+        "shipment_id": shipment.id,
+        "type": req.disruption_type,
+        "severity": req.severity,
+        "location": {"lat": shipment.current_location.lat, "lng": shipment.current_location.lng},
+        "radius_km": 25,
+        "description": desc,
+        "auto_rerouted": False,
+    })
+
+    return {"message": "Hazard injected successfully", "shipment_id": shipment.id}
+
+class DriverTelemetryRequest(BaseModel):
+    shipment_id: str
+    lat: float
+    lng: float
+    speed: Optional[float] = None
+
+@app.post("/driver/telemetry")
+async def update_driver_telemetry(req: DriverTelemetryRequest):
+    """Accepts live GPS from smartphone driver view (/driver)."""
+    shipment = next((s for s in live_shipments if s.id == req.shipment_id), None)
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+
+    shipment.current_location.lat = req.lat
+    shipment.current_location.lng = req.lng
+    return {"status": "updated", "shipment_id": shipment.id, "location": [req.lng, req.lat]}
 
 # ─────────────────────────────────────────────
 # Existing API Endpoints (kept intact)

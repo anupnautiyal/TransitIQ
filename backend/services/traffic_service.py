@@ -25,6 +25,10 @@ class TrafficService:
         self.quota_file = os.path.join(os.path.dirname(__file__), "..", "data", "tomtom_quota.json")
         self.usage_today = self._load_usage()
         
+        # Spatial Cache (Lat/Lng rounded to 2 decimals ~1km, 5-min TTL)
+        self.cache: Dict[str, Dict[str, Any]] = {}
+        self.cache_ttl = 300  # 5 minutes
+        
         # Simulation Flag
         self.simulate_rate_limit = os.getenv("SIMULATE_TOMTOM_RATE_LIMIT", "false").lower() == "true"
 
@@ -73,8 +77,16 @@ class TrafficService:
         """
         Fetches live traffic flow data from TomTom for a specific coordinate.
         Returns metrics like current speed, free flow speed, and congestion level.
-        Includes rate limiting, quota management, and simulation support.
+        Includes rate limiting, quota management, and 5-min spatial caching.
         """
+        # Check spatial cache (round coords to 2 decimals ~1km)
+        cache_key = f"{round(lat, 2)},{round(lng, 2)}"
+        now = time.time()
+        if cache_key in self.cache:
+            entry = self.cache[cache_key]
+            if now - entry["timestamp"] < self.cache_ttl:
+                return entry["data"]
+
         # 1. Quota Check
         if self.usage_today >= self.max_daily_quota:
             print(f"TrafficService: Daily quota ({self.max_daily_quota}) reached. Blocking request.")
@@ -121,7 +133,7 @@ class TrafficService:
                         congestion_level = None # Sentinel for unknown/invalid
                         congestion_status = "unknown"
                     
-                    return {
+                    result = {
                         "current_speed": current_speed,
                         "free_flow_speed": free_flow,
                         "congestion_index": round(congestion_level, 2) if congestion_level is not None else 0.0,
@@ -129,6 +141,8 @@ class TrafficService:
                         "congestion": congestion_status,
                         "quota_used": self.usage_today
                     }
+                    self.cache[cache_key] = {"data": result, "timestamp": time.time()}
+                    return result
                 elif response.status_code == 429:
                     print("TrafficService: Received 429 Too Many Requests from TomTom.")
                     return {"error": "Rate limit exceeded", "congestion": "unknown", "status_code": 429}

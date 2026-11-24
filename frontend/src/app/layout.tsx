@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+
 export const metadata: Metadata = {
-  title: "TransitIQ | Operational Intelligence",
-  description: "Next-generation supply chain visibility and dynamic optimization.",
+  title: "TransitIQ — Fleet Intelligence Platform",
+  description: "Real-time logistics intelligence, route optimization, and risk detection for modern freight operations.",
 };
 
 export default function RootLayout({
@@ -13,8 +13,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="antialiased font-sans text-slate-800 selection:bg-brand-100 selection:text-brand-900 overflow-x-hidden">
+    <html lang="en" className="dark">
+      <body className="antialiased font-sans text-slate-200 overflow-x-hidden bg-[#0a0e17]">
         <Navbar />
         <main>{children}</main>
       </body>
