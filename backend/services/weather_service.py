@@ -51,26 +51,26 @@ class WeatherService:
                 except Exception as e:
                     print(f"WeatherService: Tomorrow.io API error: {e}")
 
-        # Inject simulated weather cells to guarantee disruption detection on specific route sections
+        # Seasonally realistic weather hazards (Winter: Fog & Low Visibility in North; Monsoon/Cyclonic in South)
         simulated_cells = [
             {
-                "name": "Heavy Thunderstorm Cell D-02",
-                "lat": 23.0388,  # Near Dahod (on Delhi-Mumbai route)
-                "lng": 74.2372,
-                "radius_km": 80.0,
+                "name": "Dense Winter Smog / Fog Sector",
+                "lat": 28.1500,  # Near Haryana/Rajasthan border on Delhi-Mumbai corridor
+                "lng": 76.8000,
+                "radius_km": 75.0,
                 "values": {
-                    "rainIntensity": 1.2,  # in/hr (Severe)
-                    "visibility": 0.2,     # miles (Severe)
+                    "visibility": 0.3,     # Severe fog <0.5 mi
+                    "rainIntensity": 0.0,
                 }
             },
             {
-                "name": "Cyclone Warning Cell D-03",
-                "lat": 12.9716,  # Around Vellore (on Chennai-Bangalore route)
-                "lng": 79.1596,
-                "radius_km": 60.0,
+                "name": "Heavy Coastal Cloudburst",
+                "lat": 13.0827,  # Near Tamil Nadu / Karnataka ghat border
+                "lng": 79.5000,
+                "radius_km": 40.0,
                 "values": {
-                    "windGust": 45.0,      # knots (Severe)
-                    "rainIntensity": 0.9,   # in/hr (Severe)
+                    "windGust": 42.0,      # knots
+                    "rainIntensity": 0.85,  # in/hr
                 }
             }
         ]
@@ -146,11 +146,25 @@ class WeatherService:
                 })
             
             visibility = current.get("visibility", 10)
-            if visibility < 1.0:
+            if visibility < 0.5:
+                risks.append({
+                    "type": "Weather",
+                    "factor": "Dense Winter Fog / Smog (Hazard)",
+                    "severity": "Critical",
+                    "value": f"{visibility} mi"
+                })
+            elif visibility < 2.0:
                 risks.append({
                     "type": "Weather",
                     "factor": "Low Visibility / Fog",
-                    "severity": "Critical" if visibility < 0.5 else "High",
+                    "severity": "High",
+                    "value": f"{visibility} mi"
+                })
+            elif visibility < 4.0:
+                risks.append({
+                    "type": "Weather",
+                    "factor": "Moderate Winter Haze",
+                    "severity": "Moderate",
                     "value": f"{visibility} mi"
                 })
 

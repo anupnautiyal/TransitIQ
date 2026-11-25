@@ -18,7 +18,16 @@ export default function Home() {
   const [activeRecommendation, setActiveRecommendation] = useState<any>(null);
   const [selectedShipment, setSelectedShipment] = useState<any>(null);
   const [rerouteToast, setRerouteToast] = useState<any>(null);
-  const [dismissedShipments, setDismissedShipments] = useState<string[]>([]);
+  // Persist dismissed alert ids in sessionStorage so navigating away and back
+  // (component remount) does not re-fire toasts for events already seen this tab.
+  const [dismissedShipments, setDismissedShipments] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      return JSON.parse(sessionStorage.getItem("transitiq:dismissed-reroutes") || "[]");
+    } catch {
+      return [];
+    }
+  });
 
   const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || "";
 
@@ -29,14 +38,21 @@ export default function Home() {
     setLoading(false);
 
     const rerouteEvent = data.disruptions.find(
-      (d: any) => d.auto_rerouted && !rerouteToast && !dismissedShipments.includes(d.shipment_id)
+      (d: any) => d.auto_rerouted && !rerouteToast && !dismissedShipments.includes(d.id || d.shipment_id)
     );
     if (rerouteEvent) setRerouteToast(rerouteEvent);
   }, [rerouteToast, dismissedShipments]);
 
   const handleDismissToast = useCallback(() => {
     if (rerouteToast) {
-      setDismissedShipments((prev) => [...prev, rerouteToast.shipment_id]);
+      const id = rerouteToast.id || rerouteToast.shipment_id;
+      setDismissedShipments((prev) => {
+        const next = prev.includes(id) ? prev : [...prev, id];
+        try {
+          sessionStorage.setItem("transitiq:dismissed-reroutes", JSON.stringify(next));
+        } catch {}
+        return next;
+      });
       setRerouteToast(null);
     }
   }, [rerouteToast]);
@@ -230,7 +246,7 @@ export default function Home() {
                   accessToken={MAPBOX_TOKEN}
                   shipments={shipments}
                   risks={activeDisruptions}
-                  routeGeoJSON={activeRecommendation?.route_geometry}
+                  routeGeoJSON={activeRecommendation?.recommended_route?.path_data}
                   selectedShipment={selectedShipment}
                 />
 

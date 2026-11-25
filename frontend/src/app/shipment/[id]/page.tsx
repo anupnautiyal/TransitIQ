@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import RerouteDialog from "@/components/Intelligence/RerouteDialog";
 import MapComponent from "@/components/Map/MapComponent";
+import { useFleetSocket, FleetData } from "@/lib/useFleetSocket";
 
 export default function ShipmentDetailPage() {
   const params = useParams();
@@ -14,16 +15,38 @@ export default function ShipmentDetailPage() {
   const [routeData, setRouteData] = useState<any>(null);
   const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || "";
 
+  // ── Sync with live WebSocket simulation ──
+  const handleFleetUpdate = useCallback((data: FleetData) => {
+    const found = data.shipments.find((s: any) => s.id === params.id);
+    if (found) {
+      setShipment(found);
+    }
+  }, [params.id]);
+
+  useFleetSocket({
+    url: "ws://localhost:8000/ws/fleet",
+    onPositionUpdate: handleFleetUpdate,
+  });
+
+  // ── Initial and Route Data Fetching ──
   useEffect(() => {
-    fetch("http://localhost:8000/shipments")
+    const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    
+    // 1. Fetch shipment details
+    fetch(`${BASE_URL}/shipments`)
       .then((res) => res.json())
       .then((data) => {
         const found = data.find((s: any) => s.id === params.id);
-        setShipment(found);
         if (found) {
-          fetch(`http://localhost:8000/shipments/${found.id}/route`)
+          setShipment(found);
+          // 2. Fetch full proper route geometry
+          fetch(`${BASE_URL}/shipments/${found.id}/route`)
             .then((r) => r.json())
-            .then((rData) => { if (rData.path_data) setRouteData(rData.path_data); })
+            .then((rData) => {
+              if (rData && rData.path_data) {
+                setRouteData(rData.path_data);
+              }
+            })
             .catch((e) => console.error("Error fetching route", e));
         }
       })
@@ -67,6 +90,10 @@ export default function ShipmentDetailPage() {
   );
 
   const isDelayed = shipment.status === "delayed";
+  const riskScore = shipment.risk_score ?? 0;
+  // Show the risk panel whenever risk is elevated — a rerouted/in-transit truck
+  // can still carry a high risk score, and must not display "Route Nominal".
+  const isHighRisk = riskScore >= 0.5;
   const progress = shipment.total_steps ? Math.round((shipment.current_step / shipment.total_steps) * 100) : 0;
 
   return (
@@ -138,7 +165,7 @@ export default function ShipmentDetailPage() {
               <span className="text-[9px] font-mono text-accent-400">ML v4.1</span>
             </div>
 
-            {isDelayed ? (
+            {isDelayed || isHighRisk ? (
               <div className="flex-1 flex flex-col justify-between">
                 <div className="space-y-6">
                   <div>
@@ -146,7 +173,7 @@ export default function ShipmentDetailPage() {
                     <p className="text-xs text-slate-500 mt-1">Projected Delay</p>
                   </div>
                   <div>
-                    <p className="text-4xl font-bold text-red-400 tabular-nums">{(shipment.risk_score * 100).toFixed(0)}%</p>
+                    <p className="text-4xl font-bold text-red-400 tabular-nums">{(riskScore * 100).toFixed(0)}%</p>
                     <p className="text-xs text-slate-500 mt-1">Risk Score</p>
                   </div>
                   <div className="p-4 bg-red-500/5 rounded-xl border border-red-500/15">

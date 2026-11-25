@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 # Import Services
-from services.weather_service import WeatherService
+from services.weather_service import WeatherService, haversine_distance
 from services.routing_service import RoutingService
 from services.ais_service import AISService
 from services.risk_engine import RiskEngine
@@ -133,31 +133,31 @@ DEMO_SHIPMENTS = [
     ),
 ]
 
-# Disruption configs for demo trucks
+# Disruption configs for demo trucks (Realistic route hazards)
 DISRUPTION_SCENARIOS = {
     "TRK-MH-MH-01": {
         "trigger_at_pct": 0.45,
-        "risk_score": 0.92,
-        "weather_risks": [{"factor": "Heavy Rainfall & Flooding", "severity": "Critical"}],
-        "disruption_type": "Weather",
-        "description": "Severe rainfall warning on Mumbai-Pune Expressway near Lonavala",
-        "auto_reroute_reason": "Avoiding Heavy Rainfall & Flooding near Lonavala — rerouting via alternate highway",
+        "risk_score": 0.89,
+        "weather_risks": [{"factor": "Heavy Highway Congestion & Ghat Bottleneck", "severity": "Critical"}],
+        "disruption_type": "Traffic",
+        "description": "Multi-vehicle gridlock & road maintenance on Mumbai-Pune Expressway near Bhor Ghat",
+        "auto_reroute_reason": "Bypassing Bhor Ghat expressway congestion — rerouting via Old Mumbai-Pune Highway (NH-48 alternate)",
     },
     "TRK-DL-MH-02": {
-        "trigger_at_pct": 0.50,
-        "risk_score": 0.88,
-        "weather_risks": [{"factor": "Severe Highway Fog & Congestion", "severity": "Critical"}],
-        "disruption_type": "Traffic",
-        "description": "Massive gridlock & dense fog reported on NH-48 corridor near Kotputli",
-        "auto_reroute_reason": "Bypassing NH-48 major bottleneck — rerouting via Western Peripheral Expressway",
+        "trigger_at_pct": 0.45,
+        "risk_score": 0.92,
+        "weather_risks": [{"factor": "Dense Winter Fog & Blind Visibility", "severity": "Critical"}],
+        "disruption_type": "Weather",
+        "description": "Dense winter fog warning with visibility <0.3 mi on Delhi-Jaipur highway corridor",
+        "auto_reroute_reason": "Avoiding zero-visibility fog sector — rerouting via Western Dedicated Freight Corridor bypass",
     },
     "TRK-TN-KA-03": {
         "trigger_at_pct": 0.40,
-        "risk_score": 0.85,
-        "weather_risks": [{"factor": "Flash Storm & Waterlogging", "severity": "Critical"}],
-        "disruption_type": "Weather",
-        "description": "Flash storm and waterlogging alert near Vellore bypass",
-        "auto_reroute_reason": "Rerouting via Chittoor highway to circumvent Vellore storm sector",
+        "risk_score": 0.86,
+        "weather_risks": [{"factor": "Highway Construction Bottleneck", "severity": "High"}],
+        "disruption_type": "Traffic",
+        "description": "Severe commercial freight queue & lane closure near Ranipet toll plaza",
+        "auto_reroute_reason": "Rerouting via Chittoor arterial bypass to avoid Ranipet toll delay",
     },
 }
 
@@ -191,9 +191,11 @@ async def broadcast_positions():
             }, default=str)
             
             disconnected = set()
-            for ws in connected_clients:
+            for ws in list(connected_clients):
                 try:
-                    await ws.send_text(payload)
+                    # Per-client timeout: a dead/stalled client must not block
+                    # position updates for everyone else.
+                    await asyncio.wait_for(ws.send_text(payload), timeout=5.0)
                 except Exception:
                     disconnected.add(ws)
             connected_clients.difference_update(disconnected)
@@ -376,6 +378,8 @@ async def refresh_intelligence():
                     if success:
                         disruption_triggered[s.id] = True
                         s.status = Status.REROUTED
+                        # Risk cleared once the truck is on the new hazard-free route
+                        s.risk_score = 0.15
                         new_steps = s.total_steps
                         
                         disr_type = scenario["disruption_type"] if scenario else "Risk Anomaly"
@@ -492,18 +496,21 @@ async def websocket_fleet(websocket: WebSocket):
     connected_clients.add(websocket)
     print(f"WS: Client connected ({len(connected_clients)} total)")
     try:
-        # Send initial state immediately
-        await websocket.send_json({
-            "type": "position_update",
-            "shipments": [s.dict() for s in live_shipments],
-            "disruptions": active_disruptions,
-            "simulation": {
-                "running": simulation_state["running"],
-                "speed": simulation_state["speed"],
-                "elapsed": simulation_state["elapsed_seconds"],
-            },
-            "timestamp": time.time(),
-        })
+        # Send initial state immediately (bounded so a stalled client can't block the handler)
+        try:
+            await asyncio.wait_for(websocket.send_json({
+                "type": "position_update",
+                "shipments": [s.dict() for s in live_shipments],
+                "disruptions": active_disruptions,
+                "simulation": {
+                    "running": simulation_state["running"],
+                    "speed": simulation_state["speed"],
+                    "elapsed": simulation_state["elapsed_seconds"],
+                },
+                "timestamp": time.time(),
+            }), timeout=5.0)
+        except Exception:
+            pass
         # Keep connection alive, listen for client messages
         while True:
             data = await websocket.receive_text()
@@ -717,12 +724,19 @@ async def get_shipment_route(shipment_id: str):
     if shipment.route_geometry:
         return {"path_data": {"type": "LineString", "coordinates": shipment.route_geometry}}
     
+    await fetch_route_for_shipment(shipment)
+    if shipment.route_geometry:
+        return {"path_data": {"type": "LineString", "coordinates": shipment.route_geometry}}
+
     route_data = await routing_service.get_route(
         [shipment.origin.lng, shipment.origin.lat],
         [shipment.destination.lng, shipment.destination.lat],
     )
     if "routes" in route_data and len(route_data["routes"]) > 0:
-        return {"path_data": route_data["routes"][0]["geometry"]}
+        geom = route_data["routes"][0]["geometry"]["coordinates"]
+        shipment.route_geometry = geom
+        shipment.total_steps = len(geom)
+        return {"path_data": {"type": "LineString", "coordinates": geom}}
     return {"path_data": None}
 
 @app.post("/shipments/{shipment_id}/reroute")
@@ -730,6 +744,26 @@ async def calculate_reroute(shipment_id: str):
     shipment = next((s for s in live_shipments if s.id == shipment_id), None)
     if not shipment:
         raise HTTPException(status_code=404, detail="Shipment not found")
+
+    def format_duration(seconds: float) -> str:
+        hours = seconds / 3600.0
+        if hours < 1.0:
+            return f"{max(1, int(seconds / 60))}m"
+        h = int(hours)
+        m = int((seconds % 3600) / 60)
+        return f"{h}h {m}m" if m > 0 else f"{h}h"
+
+    # Default fallback values calculated proportionally to distance
+    approx_dist_km = haversine_distance(
+        shipment.current_location.lat, shipment.current_location.lng,
+        shipment.destination.lat, shipment.destination.lng
+    )
+    # Estimate nominal speed 60 km/h
+    base_secs = max(900, (approx_dist_km / 60.0) * 3600)
+    current_time_str = format_duration(base_secs + 3600)  # Delayed with traffic
+    rec_time_str = format_duration(base_secs)             # Clear alternative route
+    reason_str = f"Optimized routing to bypass high-risk corridor for {shipment.id}"
+    path_data = None
 
     try:
         params = {
@@ -745,48 +779,75 @@ async def calculate_reroute(shipment_id: str):
                 f"{shipment.current_location.lng},{shipment.current_location.lat};"
                 f"{shipment.destination.lng},{shipment.destination.lat}"
             )
-            response = await client.get(url, params=params)
+            response = await client.get(url, params=params, timeout=10.0)
             route_data = response.json()
 
-            path_data = None
-            if "routes" in route_data:
-                if len(route_data["routes"]) > 1:
-                    path_data = route_data["routes"][1]["geometry"]
-                elif len(route_data["routes"]) > 0:
-                    path_data = route_data["routes"][0]["geometry"]
+            routes = route_data.get("routes", [])
+            if routes:
+                # Primary route (affected by incident/delay)
+                primary_route = routes[0]
+                primary_duration = primary_route.get("duration", base_secs)
+                
+                # If shipment is delayed or high-risk, primary route incurs a heavy congestion penalty (+30-50%)
+                delayed_duration = primary_duration * (1.4 if shipment.risk_score >= 0.7 else 1.1)
+                current_time_str = format_duration(delayed_duration)
+
+                # Alternative/optimized route
+                if len(routes) > 1:
+                    alt_route = routes[1]
+                    path_data = alt_route["geometry"]
+                    rec_duration = alt_route.get("duration", primary_duration)
+                else:
+                    path_data = primary_route["geometry"]
+                    rec_duration = primary_duration
+
+                rec_time_str = format_duration(rec_duration)
+
+            # Route reason from active disruption or scenario
+            active_d = next((d for d in active_disruptions if d.get("shipment_id") == shipment_id), None)
+            if active_d:
+                reason_str = active_d.get("description", reason_str)
+            elif shipment_id in DISRUPTION_SCENARIOS:
+                reason_str = DISRUPTION_SCENARIOS[shipment_id].get("description", reason_str)
 
             rec_risk = risk_engine.calculate_shipment_risk(
                 weather_risks=[],
-                traffic_data=None,
+                traffic_data={"current_speed": 70, "free_flow_speed": 70, "congestion_index": 0.0},
                 is_delayed=False,
                 transport_mode=shipment.mode.value,
-                distance_km=250.0,
+                distance_km=approx_dist_km,
+                priority=shipment.priority
             )
+
+            # Saved time delta
+            time_saved_mins = max(10, int((delayed_duration - rec_duration) / 60)) if routes else 25
 
             return {
                 "shipment_id": shipment_id,
-                "current_route": {"time": "3.5h", "risk": shipment.risk_score},
+                "current_route": {"time": current_time_str, "risk": shipment.risk_score},
                 "recommended_route": {
-                    "time": "4.0h",
-                    "risk": rec_risk,
+                    "time": rec_time_str,
+                    "risk": min(rec_risk, 0.15),
                     "path_data": path_data,
-                    "reason": "Avoiding Severe Weather Cell D-99",
+                    "reason": reason_str,
+                    "time_saved_mins": time_saved_mins,
                 },
             }
     except Exception as e:
-        print(f"Reroute error: {e}")
+        print(f"Reroute calculation error: {e}")
 
     return {
         "shipment_id": shipment_id,
-        "current_route": {"time": "3.5h", "risk": 0.85},
+        "current_route": {"time": current_time_str, "risk": shipment.risk_score or 0.85},
         "recommended_route": {
-            "time": "4.0h",
-            "risk": 0.05,
-            "path_data": {"type": "LineString", "coordinates": [
+            "time": rec_time_str,
+            "risk": 0.08,
+            "path_data": path_data or {"type": "LineString", "coordinates": [
                 [shipment.current_location.lng, shipment.current_location.lat],
                 [shipment.destination.lng, shipment.destination.lat],
             ]},
-            "reason": "Avoiding Severe Weather Cell D-99",
+            "reason": reason_str,
+            "time_saved_mins": 30,
         },
     }
 

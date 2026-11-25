@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useCallback } from "react";
+import React, { useEffect, useRef, useCallback, useState } from "react";
 import mapboxgl from "mapbox-gl";
 
 interface MapComponentProps {
@@ -25,6 +25,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersMap = useRef<{ [key: string]: mapboxgl.Marker }>({});
+  // Sources/layers only exist after the map's "load" event; data effects must wait for it
+  const [mapLoaded, setMapLoaded] = useState(false);
 
   const animationState = useRef<{
     [key: string]: {
@@ -39,6 +41,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   useEffect(() => {
     if (map.current || !mapContainer.current) return;
 
+    setMapLoaded(false);
     mapboxgl.accessToken = accessToken;
 
     map.current = new mapboxgl.Map({
@@ -109,6 +112,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
         layout: { "line-join": "round", "line-cap": "round" },
         paint: { "line-color": "#14b8a6", "line-width": 3, "line-opacity": 0, "line-dasharray": [2, 2] },
       });
+
+      setMapLoaded(true);
     });
 
     return () => {
@@ -148,7 +153,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   );
 
   useEffect(() => {
-    if (!map.current) return;
+    if (!map.current || !mapLoaded) return;
 
     // Heatmap
     const riskSource = map.current.getSource("risk-data") as mapboxgl.GeoJSONSource;
@@ -167,18 +172,27 @@ const MapComponent: React.FC<MapComponentProps> = ({
     const routeSource = map.current.getSource("route-data") as mapboxgl.GeoJSONSource;
     if (routeSource) {
       if (routeGeoJSON) {
-        routeSource.setData(routeGeoJSON);
+        // Normalize routeGeoJSON: accept Feature or bare Geometry
+        const featureData =
+          routeGeoJSON.type === "Feature"
+            ? routeGeoJSON
+            : { type: "Feature", properties: routeGeoJSON.properties || {}, geometry: routeGeoJSON };
+
+        routeSource.setData(featureData);
         const isOptimized = routeGeoJSON?.properties?.isOptimized;
         map.current.setPaintProperty("route-line", "line-color", isOptimized ? "#14b8a6" : "#2aa7ff");
+        map.current.setPaintProperty("route-line", "line-width", 4);
+        map.current.setPaintProperty("route-line", "line-opacity", 0.9);
 
         try {
-          const coordinates = routeGeoJSON.geometry?.coordinates;
+          const coordinates =
+            featureData.geometry?.coordinates || routeGeoJSON.coordinates;
           if (coordinates && coordinates.length > 0) {
             const bounds = coordinates.reduce(
               (b: mapboxgl.LngLatBounds, c: any) => b.extend(c),
               new mapboxgl.LngLatBounds(coordinates[0], coordinates[0])
             );
-            map.current.fitBounds(bounds, { padding: 50, duration: 1000 });
+            map.current.fitBounds(bounds, { padding: 60, duration: 1200, maxZoom: 14 });
           }
         } catch (e) {}
       } else {
@@ -260,13 +274,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
         markersMap.current[shp.id] = marker;
       }
     });
-  }, [shipments, risks, routeGeoJSON, animateMarker]);
+  }, [shipments, risks, routeGeoJSON, animateMarker, mapLoaded]);
 
   useEffect(() => {
-    if (!map.current || !selectedShipment) return;
+    if (!map.current || !mapLoaded || !selectedShipment) return;
     const { lng, lat } = selectedShipment.current_location;
     map.current.flyTo({ center: [lng, lat], zoom: 12, essential: true, duration: 2000 });
-  }, [selectedShipment]);
+  }, [selectedShipment, mapLoaded]);
 
   return (
     <div className="w-full h-full relative">

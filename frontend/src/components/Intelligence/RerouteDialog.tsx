@@ -82,7 +82,19 @@ const RerouteDialog: React.FC<RerouteDialogProps> = ({
           <div className="bg-surface-200/50 p-4 rounded-xl mb-8 border border-white/[0.04]">
             <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Impact Summary</p>
             <p className="text-sm text-slate-300 leading-relaxed">
-              Applying this reroute adds <span className="text-white font-semibold">~36 mins</span> transit time but reduces risk exposure by <span className="text-teal-400 font-semibold">70%</span>.
+              Applying this reroute saves approximately{" "}
+              <span className="text-teal-400 font-semibold font-mono">
+                {recommendation.recommended_route?.time_saved_mins || 30} mins
+              </span>{" "}
+              and reduces route risk exposure by{" "}
+              <span className="text-accent-400 font-semibold font-mono">
+                {Math.round(
+                  Math.max(
+                    0,
+                    (recommendation.current_route?.risk - recommendation.recommended_route?.risk) * 100
+                  )
+                )}%
+              </span>.
             </p>
           </div>
 

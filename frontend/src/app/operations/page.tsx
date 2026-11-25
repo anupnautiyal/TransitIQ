@@ -1,28 +1,57 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { fetchShipments } from "@/lib/api";
+import React, { useState, useEffect, useCallback } from "react";
+import { fetchShipments, playSimulation, pauseSimulation, resetSimulation } from "@/lib/api";
+import { useFleetSocket, FleetData } from "@/lib/useFleetSocket";
 
 export default function OperationsPage() {
   const [shipments, setShipments] = useState<any[]>([]);
+  const [simState, setSimState] = useState({ running: false, speed: 1, elapsed: 0 });
   const [loading, setLoading] = useState(true);
 
+  // ── Live WebSocket connection ──
+  const handleFleetUpdate = useCallback((data: FleetData) => {
+    setShipments(data.shipments);
+    setSimState(data.simulation);
+    setLoading(false);
+  }, []);
+
+  const { connected } = useFleetSocket({
+    url: "ws://localhost:8000/ws/fleet",
+    onPositionUpdate: handleFleetUpdate,
+  });
+
+  // Fallback initial/poll fetch if WS is not yet connected
   useEffect(() => {
+    if (connected) return;
     async function loadData() {
       const shps = await fetchShipments();
       setShipments(shps);
       setLoading(false);
     }
     loadData();
-    const interval = setInterval(loadData, 30000);
+    const interval = setInterval(loadData, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [connected]);
 
   return (
     <div className="pt-16 min-h-screen">
       <div className="border-b border-white/[0.06] bg-surface-50/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between">
           <span className="text-[10px] font-mono text-slate-600">OPERATIONS / FLEET MANAGEMENT</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <div className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-teal-400 animate-pulse-dot" : "bg-red-400"}`} />
+              <span className="text-[10px] font-mono text-slate-500">
+                {connected ? "LIVE SYNC" : "OFFLINE"}
+              </span>
+            </div>
+            {simState.running && (
+              <span className="text-[10px] font-mono text-accent-400 bg-accent-500/10 px-2 py-0.5 rounded border border-accent-500/20">
+                {simState.speed}x ACTIVE
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -35,11 +64,42 @@ export default function OperationsPage() {
             <p className="text-sm text-slate-500">Complete fleet overview with risk and telemetry data.</p>
           </div>
           <div className="flex items-center gap-3">
-            <button className="btn-secondary text-[10px]">
-              Export Data
+            <button
+              onClick={async () => {
+                if (simState.running) {
+                  await pauseSimulation();
+                  setSimState((prev) => ({ ...prev, running: false }));
+                } else {
+                  await playSimulation();
+                  setSimState((prev) => ({ ...prev, running: true }));
+                }
+              }}
+              className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
+                simState.running
+                  ? "bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20"
+                  : "bg-teal-500 hover:bg-teal-400 text-white shadow-glow-teal"
+              }`}
+            >
+              {simState.running ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse-dot" />
+                  Pause Simulation
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                  Play Simulation ({simState.speed}x)
+                </>
+              )}
             </button>
-            <button className="btn-primary text-[10px]">
-              Optimize Fleet
+            <button
+              onClick={async () => {
+                await resetSimulation();
+                setSimState({ running: false, speed: 1, elapsed: 0 });
+              }}
+              className="btn-secondary text-[10px] px-3 py-2"
+            >
+              Reset
             </button>
           </div>
         </div>
